@@ -1,6 +1,6 @@
 package com.dropkox.synchronizer;
 
-import com.dropkox.model.file.File;
+import com.dropkox.model.FileEvent;
 import lombok.NonNull;
 import org.springframework.stereotype.Service;
 
@@ -8,7 +8,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Service
-public class SynchronizerService {
+public class SynchronizationService {
 
     private Set<Synchronizer> synchronizers = new HashSet<>();
 
@@ -16,13 +16,9 @@ public class SynchronizerService {
         this.synchronizers.add(synchronizer);
     }
 
-    public void accept(@NonNull final File file, @NonNull final Synchronizer synchronizer){
-        this.synchronizers.stream().filter(s-> s != synchronizer).forEach(p -> p.process(file));
+    public void accept(@NonNull final FileEvent fileEvent) {
+        this.synchronizers.stream().filter(s -> s != fileEvent.getKoxFile().getSource()).forEach(p -> p.process(fileEvent));
     }
-
-
-
-
 
 
 }

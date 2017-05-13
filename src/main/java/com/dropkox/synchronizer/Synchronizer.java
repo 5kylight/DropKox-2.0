@@ -1,7 +1,7 @@
 package com.dropkox.synchronizer;
 
-import com.dropkox.model.file.File;
+import com.dropkox.model.FileEvent;
 
 public interface Synchronizer {
-    void process(File file);
+    void process(FileEvent fileEvent);
 }
