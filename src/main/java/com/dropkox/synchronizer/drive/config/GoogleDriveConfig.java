@@ -10,9 +10,11 @@ import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.client.util.Value;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
+import lombok.SneakyThrows;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -25,33 +27,38 @@ import java.util.List;
 @Configuration
 public class GoogleDriveConfig {
 
-    private static final String APPLICATION_NAME =
-            "DropKox";
+    @Value("${app.name}")
+    private String applicationName;
 
-    private static final java.io.File DATA_STORE_DIR = new java.io.File(
-            System.getProperty("user.home"), ".credentials/dropkox-data");
+    @Value("${app.data}")
+    private String appData;
 
-    private static FileDataStoreFactory DATA_STORE_FACTORY;
+    private java.io.File DATA_STORE_DIR = new java.io.File(appData, ".credentials/dropkox-data");
+
+    private FileDataStoreFactory DATA_STORE_FACTORY;
 
     private static final JsonFactory JSON_FACTORY =
             JacksonFactory.getDefaultInstance();
 
-    private static HttpTransport HTTP_TRANSPORT;
+    private HttpTransport HTTP_TRANSPORT;
 
-      private static final List<String> SCOPES =
-              Collections.singletonList(DriveScopes.DRIVE_METADATA_READONLY);
+    private static final List<String> SCOPES =
+            Collections.singletonList(DriveScopes.DRIVE_METADATA_READONLY);
 
     static {
         try {
-            HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-            DATA_STORE_FACTORY = new FileDataStoreFactory(DATA_STORE_DIR);
+
         } catch (Throwable t) {
             t.printStackTrace();
             System.exit(1);
         }
     }
 
-    public static Credential authorize() throws IOException {
+    @SneakyThrows
+    public Credential authorize() throws IOException {
+        HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
+        DATA_STORE_FACTORY = new FileDataStoreFactory(DATA_STORE_DIR);
+
         // Load client secrets.
         InputStream in =
                 GoogleDriveSynchronizer.class.getResourceAsStream("/client_id.json");
@@ -78,7 +85,7 @@ public class GoogleDriveConfig {
         Credential credential = authorize();
         return new Drive.Builder(
                 HTTP_TRANSPORT, JSON_FACTORY, credential)
-                .setApplicationName(APPLICATION_NAME)
+                .setApplicationName(applicationName)
                 .build();
     }
 

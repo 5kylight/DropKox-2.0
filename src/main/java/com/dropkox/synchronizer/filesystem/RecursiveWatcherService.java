@@ -109,11 +109,11 @@ public class RecursiveWatcherService {
     }
 
     private void processWatchEvent(Consumer<Path> register, Path dir, WatchEvent<Path> watchEvent) {
-        Path absPath = dir.resolve(watchEvent.context());
         EventType eventType = resolveEventType(watchEvent.kind());
+        Path absPath = dir.resolve(watchEvent.context());
         Boolean isDirectory = absPath.toFile().isDirectory();
 
-        filesystemSynchronizer.processFilesystemEvent(absPath, eventType, isDirectory ? FileType.DIR : FileType.REGULAR_FILE);
+        filesystemSynchronizer.processFilesystemEvent(watchEvent.context(), eventType, isDirectory ? FileType.DIR : FileType.REGULAR_FILE);
 
         if (isDirectory) {
             register.accept(absPath);
