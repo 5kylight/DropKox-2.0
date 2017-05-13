@@ -18,7 +18,7 @@ apply plugin: 'org.springframework.boot'
 
 jar {
     baseName = 'gs-spring-boot'
-    version =  '0.1.0'
+    version = '0.1.0'
 }
 
 repositories {
@@ -44,7 +44,6 @@ dependencies {
     compile 'com.google.oauth-client:google-oauth-client-jetty:1.22.0'
     compile 'com.google.apis:google-api-services-drive:v3-rev69-1.22.0'
 
-
     // Tests
     testCompile("junit:junit")
     compile group: 'junit', name: 'junit', version: '4.12'
@@ -53,5 +52,6 @@ dependencies {
     compile group: 'org.springframework.boot', name: 'spring-boot-autoconfigure', version: '1.5.2.RELEASE'
 //    compile group: 'org.springframework', name: 'spring-tx', version: '4.3.7.RELEASE'
 
+    compileOnly "org.projectlombok:lombok:1.16.16"
 
 }
