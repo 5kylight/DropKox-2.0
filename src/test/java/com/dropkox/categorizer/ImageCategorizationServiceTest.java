@@ -13,7 +13,7 @@ import java.util.Map;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 
-@SpringBootTest(classes = {ImageCategorizationService.class})
+@SpringBootTest(classes = {ImageCategorizationService.class, CategorizationServiceConfig.class})
 @RunWith(SpringJUnit4ClassRunner.class)
 public class ImageCategorizationServiceTest {
 

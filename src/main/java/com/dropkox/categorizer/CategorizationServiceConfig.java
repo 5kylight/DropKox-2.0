@@ -2,20 +2,20 @@ package com.dropkox.categorizer;
 
 import clarifai2.api.ClarifaiBuilder;
 import clarifai2.api.ClarifaiClient;
-import com.sun.istack.internal.NotNull;
+import lombok.NonNull;
 import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-public class CategorizerConfig {
+public class CategorizationServiceConfig {
 
-    @NotNull
+    @NonNull
     @Value("${app.clarifai.client_id}")
     private String clientId;
 
-    @NotNull
+    @NonNull
     @Value("${app.clarifai.client_secret}")
     private String clientSecret;
 

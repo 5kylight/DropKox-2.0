@@ -7,7 +7,7 @@ import clarifai2.dto.model.output.ClarifaiOutput;
 import clarifai2.dto.prediction.Concept;
 import com.dropkox.categorizer.suppliers.UrlType;
 import com.dropkox.core.exceptions.NoLabelsAssignedException;
-import com.sun.istack.internal.NotNull;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -19,7 +19,7 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 public class ImageCategorizationService {
 
-    @NotNull
+    @NonNull
     private ClarifaiClient clarifaiClient;
 
     /**

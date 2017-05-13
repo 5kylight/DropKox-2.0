@@ -20,7 +20,8 @@ public class GoogleDriveSynchronizerTestIT {
         googleDriveSynchronizer.process(null);
 
         while (true) {
-            googleDriveSynchronizer.startListening();
+            // TODO Update
+            // googleDriveSynchronizer.startListening();
             Thread.sleep(1000);
         }
     }
