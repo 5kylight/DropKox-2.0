@@ -44,6 +44,9 @@ dependencies {
     compile 'com.google.oauth-client:google-oauth-client-jetty:1.22.0'
     compile 'com.google.apis:google-api-services-drive:v3-rev69-1.22.0'
 
+    // Clarifai - image categorization
+    compile 'com.clarifai.clarifai-api2:core:2.2.6'
+
     // Tests
     testCompile("junit:junit")
     compile group: 'junit', name: 'junit', version: '4.12'
