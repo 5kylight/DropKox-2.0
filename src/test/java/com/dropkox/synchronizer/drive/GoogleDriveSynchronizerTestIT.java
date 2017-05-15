@@ -17,8 +17,6 @@ public class GoogleDriveSynchronizerTestIT {
 
     @Test
     public void testStartListeningForChanges() throws Exception {
-        googleDriveSynchronizer.process(null);
-
         while (true) {
             // TODO Update
              googleDriveSynchronizer.startListening();

@@ -14,6 +14,10 @@ public class KoxFile {
     @NonNull
     private String id;
     @NonNull
+    private String path;
+    @NonNull
+    private String name;
+    @NonNull
     private Synchronizer source;
     @NonNull
     private FileType fileType;

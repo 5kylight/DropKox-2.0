@@ -21,8 +21,7 @@ import org.springframework.context.annotation.Configuration;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.Collections;
-import java.util.List;
+import java.util.Set;
 
 @Configuration
 public class GoogleDriveConfig {
@@ -31,9 +30,7 @@ public class GoogleDriveConfig {
     private String applicationName;
 
     @Value("${app.data}")
-    private String appData;
-
-    private java.io.File DATA_STORE_DIR = new java.io.File(appData, ".credentials/dropkox-data");
+    private java.io.File DATA_STORE_DIR;
 
     private FileDataStoreFactory DATA_STORE_FACTORY;
 
@@ -42,17 +39,7 @@ public class GoogleDriveConfig {
 
     private HttpTransport HTTP_TRANSPORT;
 
-    private static final List<String> SCOPES =
-            Collections.singletonList(DriveScopes.DRIVE_METADATA_READONLY);
-
-    static {
-        try {
-
-        } catch (Throwable t) {
-            t.printStackTrace();
-            System.exit(1);
-        }
-    }
+    private static final Set<String> SCOPES = DriveScopes.all();
 
     @SneakyThrows
     private Credential authorize() throws IOException {

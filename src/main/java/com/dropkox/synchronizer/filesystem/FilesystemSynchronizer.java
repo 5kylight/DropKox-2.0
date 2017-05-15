@@ -13,14 +13,27 @@ import lombok.extern.java.Log;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+
+import static javaslang.API.$;
+import static javaslang.API.Case;
+import static javaslang.API.Match;
+import static javaslang.API.run;
+import static javaslang.Predicates.is;
 
 @Log
-@Service
+@Component
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 @ToString(exclude = "synchronizationService")
 public class FilesystemSynchronizer implements Synchronizer {
@@ -54,7 +67,35 @@ public class FilesystemSynchronizer implements Synchronizer {
 
     @Override
     @Async
-    public void process(FileEvent fileEvent) {
+    public void process(@NonNull final FileEvent fileEvent) {
+        Match(fileEvent.getEventType()).of(
+                Case(is(EventType.CREATE), o -> run(() -> fileCreated(fileEvent))),
+                Case($(), o -> run(() -> {
+                    throw new UnsupportedOperationException("Event type not supported yet!");
+                }))
+        );
+    }
 
+    private void fileCreated(FileEvent fileEvent) {
+        log.info("Writing file: " + fileEvent.getKoxFile().getName());
+        try {
+            InputStream inputStream = fileEvent.getKoxFile().getSource().getInputStream(fileEvent.getKoxFile());
+            if (inputStream != null)
+                Files.copy(inputStream, Paths.get(rootFolder + "/" + fileEvent.getKoxFile().getPath()), StandardCopyOption.REPLACE_EXISTING);
+            else
+                log.warning("Input stream is nulll!");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public InputStream getInputStream(@NonNull final KoxFile koxFile) {
+        try {
+            return new FileInputStream(koxFile.getId());
+        } catch (FileNotFoundException e) {
+            log.warning("File not found: " + koxFile.getId());
+            return null;
+        }
     }
 }

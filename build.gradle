@@ -56,5 +56,5 @@ dependencies {
 //    compile group: 'org.springframework', name: 'spring-tx', version: '4.3.7.RELEASE'
 
     compileOnly "org.projectlombok:lombok:1.16.16"
-
+    compile 'io.javaslang:javaslang:2.0.6'
 }

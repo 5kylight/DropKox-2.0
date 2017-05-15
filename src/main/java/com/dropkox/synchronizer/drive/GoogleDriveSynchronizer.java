@@ -18,16 +18,17 @@ import lombok.ToString;
 import lombok.extern.java.Log;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
-
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Date;
 
 import static com.dropkox.model.FileType.DIR;
 
 @Log
-@Service
+@Component
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 @ToString(exclude = {"synchronizationService", "driveService", "savedStartPageToken", "rootName"})
 public class GoogleDriveSynchronizer implements Synchronizer {
@@ -41,25 +42,34 @@ public class GoogleDriveSynchronizer implements Synchronizer {
     private String rootName;
 
     @Override
-    public void process(FileEvent fileEvent) {
+    public void process(@NonNull final FileEvent fileEvent) {
 
+    }
+
+    @Override
+    public InputStream getInputStream(@NonNull final KoxFile koxFile) {
+        try {
+            return driveService.files().get(koxFile.getId()).executeMediaAsInputStream();
+        } catch (IOException e) {
+            log.warning(e.getMessage());
+            return null;
+        }
     }
 
     @PostConstruct
     @SneakyThrows
-    private void start() {
+    public void start() {
         synchronizationService.register(this);
         StartPageToken response = driveService.changes()
                 .getStartPageToken().execute();
 
         log.info("Start token: " + response.getStartPageToken());
         savedStartPageToken = response.getStartPageToken();
-        startListening();
     }
 
     @SneakyThrows
     @Async
-    void startListening() {
+    public void startListening() {
         String pageToken = savedStartPageToken;
         rootName = driveService.files().get("root").setFields("name").execute().getName();
         while (pageToken != null) {
@@ -74,6 +84,9 @@ public class GoogleDriveSynchronizer implements Synchronizer {
             }
             pageToken = changes.getNextPageToken();
         }
+
+        Thread.sleep(1000);
+        startListening();
     }
 
     @SneakyThrows
@@ -84,9 +97,11 @@ public class GoogleDriveSynchronizer implements Synchronizer {
         FileEvent fileEvent = FileEvent.builder()
                 .koxFile(KoxFile.builder()
                         .source(this)
-                        .id(filePath)
+                        .id(change.getFileId())
                         .fileType(resolveFileType(change.getType()))
                         .modificationDate(new Date(change.getTime().getValue()))
+                        .name(change.getFile().getName())
+                        .path(filePath)
                         .build())
                 .eventType(resolveEventType(change.getType()))
                 .timestamp(change.getTime().getValue())
