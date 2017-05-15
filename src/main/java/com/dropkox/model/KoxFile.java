@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NonNull;
 
+import java.util.Date;
+
 @Data
 @Builder
 public class KoxFile {
@@ -15,4 +17,6 @@ public class KoxFile {
     private Synchronizer source;
     @NonNull
     private FileType fileType;
+    @NonNull
+    private Date modificationDate;
 }

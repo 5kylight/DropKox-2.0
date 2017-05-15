@@ -1,6 +1,5 @@
 package com.dropkox.categorizer;
 
-import static com.dropkox.categorizer.suppliers.ClarifyInputSupplierFactory.getClarifyInputFor;
 import clarifai2.api.ClarifaiClient;
 import clarifai2.dto.input.ClarifaiInput;
 import clarifai2.dto.model.output.ClarifaiOutput;
@@ -14,6 +13,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.function.Supplier;
+
+import static com.dropkox.categorizer.suppliers.ClarifyInputSupplierFactory.getClarifyInputFor;
+import static java.util.stream.Collectors.toMap;
 
 @Service
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
@@ -50,9 +52,7 @@ public class ImageCategorizationService {
                 .executeSync()
                 .get();
 
-        final Map<String, Float> labels = new HashMap<>();
-
-        Optional.of(predictionResults)
+        return Optional.of(predictionResults)
                 .filter(list -> !list.isEmpty())
                 .map(list -> list.get(0))
                 .filter(Objects::nonNull)
@@ -61,9 +61,7 @@ public class ImageCategorizationService {
                 .stream()
                 .filter(Objects::nonNull)
                 .filter(this::isConceptNameNotNull)
-                .forEach(concept -> labels.put(concept.name(), concept.value()));
-
-        return labels;
+                .collect(toMap(Concept::name, Concept::value));
     }
 
     private boolean isConceptNameNotNull(Concept concept) {

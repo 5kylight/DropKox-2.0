@@ -17,9 +17,12 @@ import lombok.SneakyThrows;
 import lombok.ToString;
 import lombok.extern.java.Log;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
+
+import java.util.Date;
 
 import static com.dropkox.model.FileType.DIR;
 
@@ -55,7 +58,8 @@ public class GoogleDriveSynchronizer implements Synchronizer {
     }
 
     @SneakyThrows
-    private void startListening() {
+    @Async
+    void startListening() {
         String pageToken = savedStartPageToken;
         rootName = driveService.files().get("root").setFields("name").execute().getName();
         while (pageToken != null) {
@@ -73,11 +77,20 @@ public class GoogleDriveSynchronizer implements Synchronizer {
     }
 
     @SneakyThrows
+    @Async
     private void processChange(Change change) {
         log.info("Change found for file: " + change.getFileId());
         String filePath = getFilePath(change.getFile());
-        FileEvent fileEvent = FileEvent.builder().koxFile(KoxFile.builder().source(this).id(filePath).fileType(resolveFileType(change.getType())).build())
-                .eventType(resolveEventType(change.getType())).timestamp(change.getTime().getValue()).build();
+        FileEvent fileEvent = FileEvent.builder()
+                .koxFile(KoxFile.builder()
+                        .source(this)
+                        .id(filePath)
+                        .fileType(resolveFileType(change.getType()))
+                        .modificationDate(new Date(change.getTime().getValue()))
+                        .build())
+                .eventType(resolveEventType(change.getType()))
+                .timestamp(change.getTime().getValue())
+                .build();
 
         synchronizationService.accept(fileEvent);
     }
@@ -102,7 +115,7 @@ public class GoogleDriveSynchronizer implements Synchronizer {
     }
 
     private FileType resolveFileType(String mimeType) {
-        return  DIR;
+        return DIR;
     }
 
 

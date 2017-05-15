@@ -12,6 +12,7 @@ import lombok.ToString;
 import lombok.extern.java.Log;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -52,6 +53,7 @@ public class FilesystemSynchronizer implements Synchronizer {
     }
 
     @Override
+    @Async
     public void process(FileEvent fileEvent) {
 
     }

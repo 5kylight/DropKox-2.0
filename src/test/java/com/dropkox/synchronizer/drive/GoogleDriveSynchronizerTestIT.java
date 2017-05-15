@@ -21,7 +21,7 @@ public class GoogleDriveSynchronizerTestIT {
 
         while (true) {
             // TODO Update
-            // googleDriveSynchronizer.startListening();
+             googleDriveSynchronizer.startListening();
             Thread.sleep(1000);
         }
     }
