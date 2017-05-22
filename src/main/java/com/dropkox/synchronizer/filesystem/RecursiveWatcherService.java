@@ -8,15 +8,19 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.java.Log;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.*;
+import java.nio.file.FileSystems;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Map;
@@ -24,23 +28,24 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
-import static java.nio.file.StandardWatchEventKinds.*;
+import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
+import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
+import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
+import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
 
 /* Source http://fabriziofortino.github.io/articles/recursive-watchservice-java8/ */
 
 @Log
-@Service
-@RequiredArgsConstructor(onConstructor = @__(@Autowired))
+@RequiredArgsConstructor
 public class RecursiveWatcherService {
 
     @NonNull
     private FilesystemSynchronizer filesystemSynchronizer;
-
-    private WatchService watcher;
-    private ExecutorService executor;
-
-    @Value("${local.dir}")
+    @NonNull
     private File rootFolder;
+    private WatchService watcher;
+
+    private ExecutorService executor;
 
     @PostConstruct
     public void init() throws IOException {
@@ -50,7 +55,7 @@ public class RecursiveWatcherService {
     }
 
     @PreDestroy
-    @SneakyThrows
+    @SneakyThrows(IOException.class)
     public void cleanup() {
         watcher.close();
         executor.shutdown();
@@ -112,7 +117,6 @@ public class RecursiveWatcherService {
         EventType eventType = resolveEventType(watchEvent.kind());
         Path absPath = dir.resolve(watchEvent.context());
         Boolean isDirectory = absPath.toFile().isDirectory();
-
         filesystemSynchronizer.processFilesystemEvent(watchEvent.context(), eventType, isDirectory ? FileType.DIR : FileType.REGULAR_FILE);
 
         if (isDirectory) {

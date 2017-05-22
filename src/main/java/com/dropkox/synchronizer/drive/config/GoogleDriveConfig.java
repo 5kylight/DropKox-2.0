@@ -21,6 +21,7 @@ import org.springframework.context.annotation.Configuration;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.security.GeneralSecurityException;
 import java.util.Set;
 
 @Configuration
@@ -41,7 +42,7 @@ public class GoogleDriveConfig {
 
     private static final Set<String> SCOPES = DriveScopes.all();
 
-    @SneakyThrows
+    @SneakyThrows(GeneralSecurityException.class)
     private Credential authorize() throws IOException {
         HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
         DATA_STORE_FACTORY = new FileDataStoreFactory(DATA_STORE_DIR);

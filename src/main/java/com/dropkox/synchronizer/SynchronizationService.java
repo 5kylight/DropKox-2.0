@@ -15,7 +15,8 @@ public class SynchronizationService {
 
     private Set<Synchronizer> synchronizers = new HashSet<>();
 
-    public void register(Synchronizer synchronizer) {
+    public void register(@NonNull final Synchronizer synchronizer) {
+        log.info("Registering " + synchronizer);
         this.synchronizers.add(synchronizer);
     }
 

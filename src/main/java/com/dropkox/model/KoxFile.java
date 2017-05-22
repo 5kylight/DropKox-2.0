@@ -4,9 +4,11 @@ import com.dropkox.synchronizer.Synchronizer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 
 import java.util.Date;
 
+@RequiredArgsConstructor
 @Data
 @Builder
 public class KoxFile {

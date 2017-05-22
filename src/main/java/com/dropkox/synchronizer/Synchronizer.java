@@ -6,6 +6,7 @@ import com.dropkox.model.KoxFile;
 import java.io.InputStream;
 
 public interface Synchronizer {
+    void startListening();
     void process(FileEvent fileEvent);
     InputStream getInputStream(KoxFile koxFile);
 }

@@ -6,6 +6,7 @@ import com.dropkox.model.FileType;
 import com.dropkox.model.KoxFile;
 import com.dropkox.synchronizer.SynchronizationService;
 import com.dropkox.synchronizer.Synchronizer;
+import com.google.api.client.http.InputStreamContent;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.Change;
 import com.google.api.services.drive.model.ChangeList;
@@ -42,8 +43,19 @@ public class GoogleDriveSynchronizer implements Synchronizer {
     private String rootName;
 
     @Override
+    @SneakyThrows(IOException.class)
     public void process(@NonNull final FileEvent fileEvent) {
+        log.info("Sending file: " + fileEvent.getKoxFile().getName());
 
+        File fileMetadata = new File();
+        fileMetadata.setName(fileEvent.getKoxFile().getName());
+        KoxFile koxFile = fileEvent.getKoxFile();
+        InputStream inputStream = koxFile.getSource().getInputStream(koxFile);
+        InputStreamContent inputStreamContent = new InputStreamContent("text/plain", inputStream);
+        File file = driveService.files().create(fileMetadata, inputStreamContent)
+                .setFields("id")
+                .execute();
+        System.out.println("File ID: " + file.getId());
     }
 
     @Override
@@ -57,7 +69,7 @@ public class GoogleDriveSynchronizer implements Synchronizer {
     }
 
     @PostConstruct
-    @SneakyThrows
+    @SneakyThrows(IOException.class)
     public void start() {
         synchronizationService.register(this);
         StartPageToken response = driveService.changes()
@@ -67,7 +79,7 @@ public class GoogleDriveSynchronizer implements Synchronizer {
         savedStartPageToken = response.getStartPageToken();
     }
 
-    @SneakyThrows
+    @SneakyThrows(value =  {IOException.class, InterruptedException.class})
     @Async
     public void startListening() {
         String pageToken = savedStartPageToken;
@@ -89,7 +101,6 @@ public class GoogleDriveSynchronizer implements Synchronizer {
         startListening();
     }
 
-    @SneakyThrows
     @Async
     private void processChange(Change change) {
         log.info("Change found for file: " + change.getFileId());
@@ -110,7 +121,7 @@ public class GoogleDriveSynchronizer implements Synchronizer {
         synchronizationService.accept(fileEvent);
     }
 
-    @SneakyThrows
+    @SneakyThrows(IOException.class)
     private String getFilePath(File startFile) {
         StringBuilder stringBuilder = new StringBuilder(startFile.getName());
 

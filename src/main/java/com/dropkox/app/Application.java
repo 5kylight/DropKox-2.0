@@ -25,7 +25,7 @@ public class Application implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        filesystemSynchronizer.start();
+        filesystemSynchronizer.startListening();
         googleDriveSynchronizer.startListening();
     }
     public static void main(String[] args) throws JAXBException {

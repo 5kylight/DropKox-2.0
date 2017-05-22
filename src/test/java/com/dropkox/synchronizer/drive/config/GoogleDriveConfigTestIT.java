@@ -46,7 +46,6 @@ public class GoogleDriveConfigTestIT {
                 downloader.setDirectDownloadEnabled(true);
 //                downloader.download(new GenericUrl(file.getLastModifyingUser()), out);
                 System.out.printf("%s (%s)\n", file.getName(), file.getId());
-                System.out.println("dupa: " + out);
             }
         }
     }
