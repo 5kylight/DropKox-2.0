@@ -86,8 +86,7 @@ public class GoogleDriveSynchronizer implements Synchronizer {
         rootName = driveService.files().get("root").setFields("name").execute().getName();
         while (pageToken != null) {
 
-            ChangeList changes = driveService.changes().list(pageToken)
-                    .execute();
+            ChangeList changes = driveService.changes().list(pageToken).execute();
             for (Change change : changes.getChanges()) {
                 processChange(change);
             }
@@ -114,7 +113,7 @@ public class GoogleDriveSynchronizer implements Synchronizer {
                         .name(change.getFile().getName())
                         .path(filePath)
                         .build())
-                .eventType(resolveEventType(change.getType()))
+                .eventType(resolveEventType(change))
                 .timestamp(change.getTime().getValue())
                 .build();
 
@@ -136,8 +135,10 @@ public class GoogleDriveSynchronizer implements Synchronizer {
         return stringBuilder.toString();
     }
 
-    private EventType resolveEventType(String type) {
-        return EventType.CREATE;
+    @SneakyThrows(IOException.class)
+    private EventType resolveEventType(Change change) {
+        File file = driveService.files().get(change.getFileId()).setFields("trashed").execute();
+        return file.getTrashed() ? EventType.DELETE : EventType.MODIFY;
     }
 
     private FileType resolveFileType(String mimeType) {

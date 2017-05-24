@@ -75,25 +75,14 @@ public class FilesystemSynchronizer implements Synchronizer {
     @Async
     public void process(@NonNull final FileEvent fileEvent) {
         Match(fileEvent.getEventType()).of(
-                Case(is(EventType.CREATE), o -> run(() -> fileCreated(fileEvent))),
+                Case(is(EventType.MODIFY), o -> run(() -> fileCreated(fileEvent.getKoxFile()))),
+                Case(is(EventType.DELETE), o -> run(() -> fileDeleted(fileEvent.getKoxFile()))),
                 Case($(), o -> run(() -> {
-                    throw new UnsupportedOperationException("Event type not supported yet!");
+                    throw new UnsupportedOperationException("Event type not supported yet! " + fileEvent.getEventType());
                 }))
         );
     }
 
-    private void fileCreated(FileEvent fileEvent) {
-        log.info("Writing file: " + fileEvent.getKoxFile().getName());
-        try {
-            InputStream inputStream = fileEvent.getKoxFile().getSource().getInputStream(fileEvent.getKoxFile());
-            if (inputStream != null)
-                Files.copy(inputStream, Paths.get(rootFolder + "/" + fileEvent.getKoxFile().getPath()), StandardCopyOption.REPLACE_EXISTING);
-            else
-                log.warning("Input stream is null!");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 
     @Override
     public InputStream getInputStream(@NonNull final KoxFile koxFile) {
@@ -104,4 +93,29 @@ public class FilesystemSynchronizer implements Synchronizer {
             return null;
         }
     }
+
+    private void fileCreated(KoxFile koxFile) {
+        log.info("Writing file: " + koxFile.getName());
+        try {
+            InputStream inputStream = koxFile.getSource().getInputStream(koxFile);
+            if (inputStream != null)
+                Files.copy(inputStream, getAbsolutePath(koxFile), StandardCopyOption.REPLACE_EXISTING);
+            else
+                log.warning("Input stream is null!");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @SneakyThrows(IOException.class)
+    private void fileDeleted(KoxFile koxFile) {
+        Files.deleteIfExists(getAbsolutePath(koxFile));
+    }
+
+
+    private Path getAbsolutePath(KoxFile koxFile) {
+        return Paths.get(rootFolder + "/" + koxFile.getPath());
+    }
+
+
 }
