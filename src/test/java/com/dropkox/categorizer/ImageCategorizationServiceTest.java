@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import java.io.File;
 import java.util.List;
 import java.util.Map;
 
@@ -31,6 +32,24 @@ public class ImageCategorizationServiceTest {
             List<ImageLabel> results =
                     imageCategorizationService
                             .getLabelsForImage("https://samples.clarifai.com/metro-north.jpg", UrlType.WEB);
+
+            assertFalse("Method should throw exception in case of no labels.", results.isEmpty());
+        } catch (NoLabelsAssignedException e) {
+            fail("No labels has been assigned for provided photo URL. " +
+                    "Requirements for integration with external service unsatisfied.");
+        }
+
+    }
+
+    @Test
+    public void testLocalImageLabeling() {
+        try {
+            ClassLoader classLoader = getClass().getClassLoader();
+            File file = new File(classLoader.getResource("car.jpeg").getFile());
+
+            List<ImageLabel> results =
+                    imageCategorizationService
+                            .getLabelsForImage(file.getAbsolutePath(), UrlType.LOCAL);
 
             assertFalse("Method should throw exception in case of no labels.", results.isEmpty());
         } catch (NoLabelsAssignedException e) {
