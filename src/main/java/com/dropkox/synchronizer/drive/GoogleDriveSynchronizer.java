@@ -5,7 +5,7 @@ import com.dropkox.model.FileEvent;
 import com.dropkox.model.FileType;
 import com.dropkox.model.KoxFile;
 import com.dropkox.synchronizer.SynchronizationService;
-import com.dropkox.synchronizer.Synchronizer;
+import com.dropkox.synchronizer.ISynchronizer;
 import com.google.api.client.http.InputStreamContent;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.Change;
@@ -32,7 +32,7 @@ import static com.dropkox.model.FileType.DIR;
 @Component
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 @ToString(exclude = {"synchronizationService", "driveService", "savedStartPageToken", "rootName"})
-public class GoogleDriveSynchronizer implements Synchronizer {
+public class GoogleDriveSynchronizer implements ISynchronizer {
 
     @NonNull
     private SynchronizationService synchronizationService;
@@ -79,7 +79,7 @@ public class GoogleDriveSynchronizer implements Synchronizer {
         savedStartPageToken = response.getStartPageToken();
     }
 
-    @SneakyThrows(value =  {IOException.class, InterruptedException.class})
+    @SneakyThrows(value = {IOException.class, InterruptedException.class})
     @Async
     public void startListening() {
         String pageToken = savedStartPageToken;

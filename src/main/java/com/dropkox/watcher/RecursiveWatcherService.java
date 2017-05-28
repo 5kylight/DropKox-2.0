@@ -1,4 +1,4 @@
-package com.dropkox.synchronizer.filesystem;
+package com.dropkox.watcher;
 
 
 import com.dropkox.model.EventType;
@@ -40,7 +40,7 @@ import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
 public class RecursiveWatcherService {
 
     @NonNull
-    private FilesystemSynchronizer filesystemSynchronizer;
+    private IFileSystemEventProcessor fileSystemEventProcessor;
     @NonNull
     private File rootFolder;
     private WatchService watcher;
@@ -117,7 +117,7 @@ public class RecursiveWatcherService {
         EventType eventType = resolveEventType(watchEvent.kind());
         Path absPath = dir.resolve(watchEvent.context());
         Boolean isDirectory = absPath.toFile().isDirectory();
-        filesystemSynchronizer.processFilesystemEvent(watchEvent.context(), eventType, isDirectory ? FileType.DIR : FileType.REGULAR_FILE);
+        fileSystemEventProcessor.processFilesystemEvent(watchEvent.context(), eventType, isDirectory ? FileType.DIR : FileType.REGULAR_FILE);
 
         if (isDirectory) {
             register.accept(absPath);

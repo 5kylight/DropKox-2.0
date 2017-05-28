@@ -1,6 +1,6 @@
 package com.dropkox.model;
 
-import com.dropkox.synchronizer.Synchronizer;
+import com.dropkox.synchronizer.ISynchronizer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NonNull;
@@ -20,7 +20,7 @@ public class KoxFile {
     @NonNull
     private String name;
     @NonNull
-    private Synchronizer source;
+    private ISynchronizer source;
     @NonNull
     private FileType fileType;
     @NonNull

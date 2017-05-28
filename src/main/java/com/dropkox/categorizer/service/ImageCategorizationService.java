@@ -1,4 +1,4 @@
-package com.dropkox.categorizer;
+package com.dropkox.categorizer.service;
 
 import clarifai2.api.ClarifaiClient;
 import clarifai2.dto.input.ClarifaiInput;
@@ -6,6 +6,7 @@ import clarifai2.dto.model.output.ClarifaiOutput;
 import clarifai2.dto.prediction.Concept;
 import com.dropkox.categorizer.suppliers.UrlType;
 import com.dropkox.core.exceptions.NoLabelsAssignedException;
+import com.dropkox.model.ImageLabel;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,9 +14,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static com.dropkox.categorizer.suppliers.ClarifyInputSupplierFactory.getClarifyInputFor;
-import static java.util.stream.Collectors.toMap;
 
 @Service
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
@@ -32,19 +33,19 @@ public class ImageCategorizationService {
      * @return map of assigned labels and their certainty
      * @throws NoLabelsAssignedException when no labels could be assigned for the image
      */
-    public Map<String, Float> getLabelsForImage(String URL, UrlType urlType) throws NoLabelsAssignedException {
+    public List<ImageLabel> getLabelsForImage(String URL, UrlType urlType) throws NoLabelsAssignedException {
         Supplier<ClarifaiInput> inputSupplier = getClarifyInputFor(URL, urlType);
         return getLabelsOrThrowException(inputSupplier);
     }
 
-    private Map<String, Float> getLabelsOrThrowException(Supplier<ClarifaiInput> imageSupplier) throws NoLabelsAssignedException {
+    private List<ImageLabel> getLabelsOrThrowException(Supplier<ClarifaiInput> imageSupplier) throws NoLabelsAssignedException {
         return Optional.ofNullable(imageSupplier)
                 .map(this::labelImageWithExternalAPI)
                 .filter(map -> !map.isEmpty())
                 .orElseThrow(NoLabelsAssignedException::new);
     }
 
-    private Map<String, Float> labelImageWithExternalAPI(Supplier<ClarifaiInput> clarifaiInputSupplier) {
+    private List<ImageLabel> labelImageWithExternalAPI(Supplier<ClarifaiInput> clarifaiInputSupplier) {
         List<ClarifaiOutput<Concept>> predictionResults = clarifaiClient.getDefaultModels()
                 .generalModel()
                 .predict()
@@ -61,7 +62,8 @@ public class ImageCategorizationService {
                 .stream()
                 .filter(Objects::nonNull)
                 .filter(this::isConceptNameNotNull)
-                .collect(toMap(Concept::name, Concept::value));
+                .map(c -> ImageLabel.builder().name(c.name()).probability(c.value()).build())
+                .collect(Collectors.toList());
     }
 
     private boolean isConceptNameNotNull(Concept concept) {

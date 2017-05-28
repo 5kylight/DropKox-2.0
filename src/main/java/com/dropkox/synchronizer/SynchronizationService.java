@@ -13,9 +13,9 @@ import java.util.Set;
 @Service
 public class SynchronizationService {
 
-    private Set<Synchronizer> synchronizers = new HashSet<>();
+    private Set<ISynchronizer> synchronizers = new HashSet<>();
 
-    public void register(@NonNull final Synchronizer synchronizer) {
+    public void register(@NonNull final ISynchronizer synchronizer) {
         log.info("Registering " + synchronizer);
         this.synchronizers.add(synchronizer);
     }

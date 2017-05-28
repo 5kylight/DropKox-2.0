@@ -4,8 +4,10 @@ import com.dropkox.model.EventType;
 import com.dropkox.model.FileEvent;
 import com.dropkox.model.FileType;
 import com.dropkox.model.KoxFile;
+import com.dropkox.watcher.IFileSystemEventProcessor;
 import com.dropkox.synchronizer.SynchronizationService;
-import com.dropkox.synchronizer.Synchronizer;
+import com.dropkox.synchronizer.ISynchronizer;
+import com.dropkox.watcher.RecursiveWatcherService;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -38,7 +40,7 @@ import static javaslang.Predicates.is;
 @Component
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 @ToString(exclude = "synchronizationService")
-public class FilesystemSynchronizer implements Synchronizer {
+public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventProcessor {
 
     @Value("${local.dir}")
     private File rootFolder;
@@ -60,7 +62,8 @@ public class FilesystemSynchronizer implements Synchronizer {
         recursiveWatcherService.init();
     }
 
-    void processFilesystemEvent(@NonNull final Path path, @NonNull final EventType eventType, @NonNull final FileType fileType) {
+    @Override
+    public void processFilesystemEvent(@NonNull final Path path, @NonNull final EventType eventType, @NonNull final FileType fileType) {
         KoxFile koxFile = KoxFile.builder().fileType(fileType).path(path.toString()).id(path.toString()).name(path.toString()).source(this).modificationDate(new Date()).build();
         FileEvent fileEvent = FileEvent.builder()
                 .eventType(eventType)

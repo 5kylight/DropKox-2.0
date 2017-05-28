@@ -1,13 +1,17 @@
 package com.dropkox.categorizer;
 
+import com.dropkox.categorizer.service.CategorizationServiceConfig;
+import com.dropkox.categorizer.service.ImageCategorizationService;
 import com.dropkox.categorizer.suppliers.UrlType;
 import com.dropkox.core.exceptions.NoLabelsAssignedException;
+import com.dropkox.model.ImageLabel;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertFalse;
@@ -24,7 +28,7 @@ public class ImageCategorizationServiceTest {
     @Test
     public void testImageLabeling() {
         try {
-            Map<String, Float> results =
+            List<ImageLabel> results =
                     imageCategorizationService
                             .getLabelsForImage("https://samples.clarifai.com/metro-north.jpg", UrlType.WEB);
 

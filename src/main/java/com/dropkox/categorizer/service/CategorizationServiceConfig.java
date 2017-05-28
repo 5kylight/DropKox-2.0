@@ -1,4 +1,4 @@
-package com.dropkox.categorizer;
+package com.dropkox.categorizer.service;
 
 import clarifai2.api.ClarifaiBuilder;
 import clarifai2.api.ClarifaiClient;
