@@ -1,14 +1,14 @@
 package com.dropkox.model;
 
 import com.dropkox.synchronizer.ISynchronizer;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 
 import java.util.Date;
 
-@RequiredArgsConstructor
+@AllArgsConstructor
 @Data
 @Builder
 public class KoxFile {
@@ -23,6 +23,5 @@ public class KoxFile {
     private ISynchronizer source;
     @NonNull
     private FileType fileType;
-    @NonNull
     private Date modificationDate;
 }

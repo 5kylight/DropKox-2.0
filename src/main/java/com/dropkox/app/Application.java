@@ -6,11 +6,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
 
 import javax.xml.bind.JAXBException;
 
 @Service
+@EnableAsync(proxyTargetClass = true)
 @SpringBootApplication(scanBasePackages = { "com.dropkox" })
 public class Application implements CommandLineRunner {
 
