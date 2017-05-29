@@ -26,11 +26,14 @@ import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
-import java.util.function.Function;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import static com.dropkox.model.FileType.DIR;
+import static com.dropkox.model.FileType.REGULAR_FILE;
 import static javaslang.API.$;
 import static javaslang.API.Case;
 import static javaslang.API.Match;
@@ -71,7 +74,7 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
 
     @SneakyThrows(IOException.class)
     private boolean isFileNeededToUpdate(KoxFile koxFile) {
-        String currentFileId = getDriveId(koxFile);
+        String currentFileId = getDriveId(koxFile.getName(), koxFile.getPath());
         if (currentFileId == null)
             return true;
 
@@ -86,39 +89,79 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
         return currentFileModificationTime.plusSeconds(5).isBefore(changedFileModificationTime);
     }
 
-
     @SneakyThrows(IOException.class)
     private void fileDeleted(KoxFile koxFile) {
         log.info("Removing file " + koxFile);
-        String fileId = getDriveId(koxFile);
+        String fileId = getDriveId(koxFile.getName(), koxFile.getPath());
         if (fileId != null)
             driveService.files().delete(fileId).execute();
         else
             log.warning("File do not exists " + koxFile);
     }
 
+
     @SneakyThrows(IOException.class)
-    private String getDriveId(KoxFile koxFile) {
+    private String getDriveId(String name, String path) {
         FileList result = driveService.files().list()
-                .setQ(String.format("trashed = false and name='%s'", koxFile.getName()))
+                .setQ(String.format("trashed = false and name='%s'", name))
                 .execute();
 
         return result.getFiles().stream()
                 .map(File::getId)
-                .collect(Collectors.toMap(id -> getFilePath(id, koxFile.getName()), Function.identity()))
-                .get(koxFile.getPath());
+                .filter(id -> getFilePath(id, name).equals(path))
+                .findAny()
+                .orElse(null);
     }
 
     @SneakyThrows(IOException.class)
     private void fileModified(KoxFile koxFile) {
+        if (koxFile.getFileType() == REGULAR_FILE) {
+            sendRegularFile(koxFile);
+        } else {
+            sendDirectoryRecursive(koxFile);
+        }
+    }
+
+
+    private void sendRegularFile(KoxFile koxFile) throws IOException {
         log.info("Sending file: " + koxFile.getName());
         File fileMetadata = new File();
-        fileMetadata.setName(koxFile.getName());
+        fileMetadata.setName(koxFile.getName()); // TODO: set parent directory
         InputStream inputStream = koxFile.getSource().getInputStream(koxFile);
         InputStreamContent inputStreamContent = new InputStreamContent("text/plain", inputStream);
         driveService.files().create(fileMetadata, inputStreamContent)
                 .execute();
     }
+
+    private void sendDirectoryRecursive(KoxFile koxFile) throws IOException {
+        log.info("Sending directory: " + koxFile.getName());
+        if (getDriveId(koxFile.getName(), koxFile.getPath()) != null) {
+            log.warning("Directory already exits");
+            return;
+        }
+
+        List<String> fileNames = Arrays.stream(koxFile.getPath().split("/")).filter(s -> !s.isEmpty()).collect(Collectors.toList());
+        String parentId = "root";
+        StringBuilder currentPath = new StringBuilder(fileNames.get(0));
+        for (String fileName : fileNames) {
+            String driveId = getDriveId(fileName, currentPath.toString());
+
+            if (driveId == null) {
+                File fileMetadata = new File();
+                fileMetadata.setName(fileName);
+                fileMetadata.setParents(Collections.singletonList(parentId));
+                fileMetadata.setMimeType("application/vnd.google-apps.folder");
+                File createdFile = driveService.files().create(fileMetadata).setFields("id").execute();
+                parentId = createdFile.getId();
+            } else {
+                parentId = driveId;
+            }
+
+
+            currentPath.append("/").append(fileName);
+        }
+    }
+
 
     @Override
     public InputStream getInputStream(@NonNull final KoxFile koxFile) {

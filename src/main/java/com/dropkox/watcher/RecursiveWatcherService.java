@@ -17,6 +17,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
@@ -103,7 +104,7 @@ public class RecursiveWatcherService {
                 }
                 key.pollEvents().stream()
                         .filter(e -> (e.kind() != OVERFLOW))
-                        .map(watchEvent -> (WatchEvent<Path>)watchEvent)
+                        .map(watchEvent -> (WatchEvent<Path>) watchEvent)
                         .forEach(watchEvent -> processWatchEvent(register, dir, watchEvent));
                 boolean valid = key.reset(); // IMPORTANT: The key must be reset after processed
                 if (!valid) {
@@ -117,7 +118,14 @@ public class RecursiveWatcherService {
         EventType eventType = resolveEventType(watchEvent.kind());
         Path absPath = dir.resolve(watchEvent.context());
         Boolean isDirectory = absPath.toFile().isDirectory();
-        fileSystemEventProcessor.processFilesystemEvent(watchEvent.context(), eventType, isDirectory ? FileType.DIR : FileType.REGULAR_FILE);
+        String relativeFromPath = dir.toString().replaceFirst(rootFolder.getAbsolutePath(), "").trim();
+
+        if(!relativeFromPath.isEmpty())
+            relativeFromPath += "/";
+
+        Path relativeFromRootPath = Paths.get(relativeFromPath + watchEvent.context());
+
+        fileSystemEventProcessor.processFilesystemEvent(relativeFromRootPath, eventType, isDirectory ? FileType.DIR : FileType.REGULAR_FILE);
 
         if (isDirectory) {
             register.accept(absPath);

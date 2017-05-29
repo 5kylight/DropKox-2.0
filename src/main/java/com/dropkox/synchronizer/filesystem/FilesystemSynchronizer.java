@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.ToString;
 import lombok.extern.java.Log;
+import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
@@ -29,6 +30,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Date;
 
 import static javaslang.API.$;
@@ -46,7 +48,6 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
 
     @Value("${local.dir}")
     private File rootFolder;
-
 
 
     @NonNull
@@ -68,10 +69,10 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
 
     @Override
     public void processFilesystemEvent(@NonNull final Path path, @NonNull final EventType eventType, @NonNull final FileType fileType) {
-
+        String name = Arrays.stream(path.toString().split("/")).filter(p -> !p.isEmpty()).reduce((f, s) -> s).orElse(null);
         Instant modificationDate = null;
         try {
-            modificationDate = eventType == EventType.DELETE ? Instant.now() : Files.getLastModifiedTime(Paths.get(rootFolder + "/" + path)).toInstant();
+            modificationDate = eventType == EventType.DELETE || fileType == FileType.DIR ? Instant.now() : Files.getLastModifiedTime(Paths.get(rootFolder + "/" + path)).toInstant();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -79,7 +80,7 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
                 .fileType(fileType)
                 .path(path.toString())
                 .id(path.toString())
-                .name(path.toString())
+                .name(name)
                 .source(this)
                 .modificationDate(Date.from(modificationDate))
                 .build();
@@ -114,13 +115,13 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
     private boolean isFileNeededToUpdate(KoxFile koxFile) {
         Path absolutePath = getAbsolutePath(koxFile);
 
-        if (!Files.exists(absolutePath) )
+        if (!Files.exists(absolutePath))
             return true;
 
-        Instant changedFileModificationTime =  koxFile.getModificationDate().toInstant();
+        Instant changedFileModificationTime = koxFile.getModificationDate().toInstant();
         Instant currentFileModificationTime = null;
         try {
-             currentFileModificationTime = Files.getLastModifiedTime(absolutePath).toInstant();
+            currentFileModificationTime = Files.getLastModifiedTime(absolutePath).toInstant();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -141,23 +142,47 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
         }
     }
 
+    @SneakyThrows(IOException.class)
     private void fileModified(KoxFile koxFile) {
-        log.info("Saving file: " + koxFile.getName());
-        try {
-            InputStream inputStream = koxFile.getSource().getInputStream(koxFile);
-            if (inputStream != null)
-                Files.copy(inputStream, getAbsolutePath(koxFile), StandardCopyOption.REPLACE_EXISTING);
-            else
-                log.warning("Input stream is null!");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+
+        if (koxFile.getFileType() == FileType.REGULAR_FILE)
+            saveRegularFile(koxFile);
+        else
+            saveDirectory(koxFile);
     }
+
+
+    private void saveRegularFile(KoxFile koxFile) throws IOException {
+        log.info("Saving file: " + koxFile.getName());
+        InputStream inputStream = koxFile.getSource().getInputStream(koxFile);
+        if (inputStream != null)
+            Files.copy(inputStream, getAbsolutePath(koxFile), StandardCopyOption.REPLACE_EXISTING);
+        else
+            log.warning("Input stream is null!");
+    }
+
+    @SneakyThrows(IOException.class)
+    private void saveDirectory(KoxFile koxFile) {
+        log.info("Saving directory: " + koxFile.getName());
+
+        if (Files.exists(getAbsolutePath(koxFile))) {
+            log.warning("Directory already exits " + koxFile);
+            return;
+        }
+
+        Files.createDirectory(getAbsolutePath(koxFile));
+    }
+
 
     private void fileDeleted(KoxFile koxFile) {
         log.info("Removing file: " + koxFile);
         try {
-            Files.deleteIfExists(getAbsolutePath(koxFile));
+
+            Path absolutePath = getAbsolutePath(koxFile);
+            if (!absolutePath.startsWith(rootFolder.getAbsolutePath()))
+                throw new RuntimeException("OMG!!!! Run away");
+
+            FileUtils.deleteDirectory(absolutePath.toFile()); // VERY, VERY DANGEROUS!!!
         } catch (IOException e) {
             e.printStackTrace();
         }
