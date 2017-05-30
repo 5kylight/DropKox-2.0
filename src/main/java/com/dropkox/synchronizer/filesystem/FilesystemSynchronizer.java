@@ -14,6 +14,7 @@ import lombok.SneakyThrows;
 import lombok.ToString;
 import lombok.extern.java.Log;
 import org.apache.commons.io.FileUtils;
+import org.eclipse.jetty.util.ConcurrentHashSet;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
@@ -32,6 +33,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Set;
 
 import static javaslang.API.$;
 import static javaslang.API.Case;
@@ -49,6 +51,7 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
     @Value("${local.dir}")
     private File rootFolder;
 
+    private final Set<Path> inProgressPaths = new ConcurrentHashSet<>();
 
     @NonNull
     private SynchronizationService synchronizationService;
@@ -69,6 +72,8 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
 
     @Override
     public void processFilesystemEvent(@NonNull final Path path, @NonNull final EventType eventType, @NonNull final FileType fileType) {
+
+
         String name = Arrays.stream(path.toString().split("/")).filter(p -> !p.isEmpty()).reduce((f, s) -> s).orElse(null);
         Instant modificationDate = null;
         try {
@@ -89,6 +94,11 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
                 .koxFile(koxFile)
                 .timestamp(System.currentTimeMillis())
                 .build();
+
+        if (inProgressPaths.contains(getAbsolutePath(koxFile))) {
+            log.warning("File under processing");
+            return;
+        }
 
         synchronizationService.accept(fileEvent);
     }
@@ -115,7 +125,7 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
     private boolean isFileNeededToUpdate(KoxFile koxFile) {
         Path absolutePath = getAbsolutePath(koxFile);
 
-        if (!Files.exists(absolutePath))
+        if (Files.notExists(absolutePath))
             return true;
 
         Instant changedFileModificationTime = koxFile.getModificationDate().toInstant();
@@ -155,9 +165,13 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
     private void saveRegularFile(KoxFile koxFile) throws IOException {
         log.info("Saving file: " + koxFile.getName());
         InputStream inputStream = koxFile.getSource().getInputStream(koxFile);
-        if (inputStream != null)
-            Files.copy(inputStream, getAbsolutePath(koxFile), StandardCopyOption.REPLACE_EXISTING);
-        else
+
+        if (inputStream != null) {
+            Path absolutePath = getAbsolutePath(koxFile);
+            inProgressPaths.add(absolutePath);
+            Files.copy(inputStream, absolutePath, StandardCopyOption.REPLACE_EXISTING);
+            inProgressPaths.remove(absolutePath);
+        } else
             log.warning("Input stream is null!");
     }
 
@@ -170,7 +184,11 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
             return;
         }
 
-        Files.createDirectory(getAbsolutePath(koxFile));
+        Path absolutePath = getAbsolutePath(koxFile);
+        inProgressPaths.add(absolutePath);
+        Files.createDirectory(absolutePath);
+        inProgressPaths.remove(absolutePath);
+
     }
 
 
@@ -181,8 +199,10 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
             Path absolutePath = getAbsolutePath(koxFile);
             if (!absolutePath.startsWith(rootFolder.getAbsolutePath()))
                 throw new RuntimeException("OMG!!!! Run away");
-
+            inProgressPaths.add(absolutePath);
             FileUtils.deleteDirectory(absolutePath.toFile()); // VERY, VERY DANGEROUS!!!
+            inProgressPaths.remove(absolutePath);
+
         } catch (IOException e) {
             e.printStackTrace();
         }
