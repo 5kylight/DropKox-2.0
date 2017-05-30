@@ -193,7 +193,27 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
 
 
     private void fileDeleted(KoxFile koxFile) {
+        if (koxFile.getFileType() == FileType.REGULAR_FILE)
+            deleteRegularFile(koxFile);
+        else
+            deleteDirectory(koxFile);
+
+    }
+
+    private void deleteRegularFile(KoxFile koxFile) {
         log.info("Removing file: " + koxFile);
+
+        Path absolutePath = getAbsolutePath(koxFile);
+        if (!absolutePath.startsWith(rootFolder.getAbsolutePath()))
+            throw new RuntimeException("OMG!!!! Run away");
+
+        inProgressPaths.add(absolutePath);
+        absolutePath.toFile().delete(); // VERY, VERY DANGEROUS!!!
+        inProgressPaths.remove(absolutePath);
+    }
+
+    private void deleteDirectory(KoxFile koxFile) {
+        log.info("Removing directory: " + koxFile);
         try {
 
             Path absolutePath = getAbsolutePath(koxFile);
