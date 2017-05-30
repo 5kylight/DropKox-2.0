@@ -214,7 +214,7 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
                     .koxFile(KoxFile.builder()
                             .source(this)
                             .id(change.getFileId())
-                            .fileType(resolveFileType(change.getType()))
+                            .fileType(resolveFileType(change.getFile().getMimeType()))
                             .modificationDate(new Date(change.getTime().getValue()))
                             .name(change.getFile().getName())
                             .path(filePath)
@@ -253,7 +253,7 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
     }
 
     private FileType resolveFileType(String mimeType) {
-        return DIR;
+        return mimeType.equals("application/vnd.google-apps.folder") ? DIR : REGULAR_FILE;
     }
 
 
