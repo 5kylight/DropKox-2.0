@@ -6,13 +6,8 @@ import com.dropkox.model.FileType;
 import com.dropkox.model.KoxFile;
 import com.dropkox.synchronizer.ISynchronizer;
 import com.dropkox.synchronizer.SynchronizationService;
-import com.google.api.client.http.InputStreamContent;
-import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.Change;
-import com.google.api.services.drive.model.ChangeList;
 import com.google.api.services.drive.model.File;
-import com.google.api.services.drive.model.FileList;
-import com.google.api.services.drive.model.StartPageToken;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -27,7 +22,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,16 +38,14 @@ import static javaslang.Predicates.isIn;
 @Log
 @Component
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
-@ToString(exclude = {"synchronizationService", "driveService", "savedStartPageToken", "rootName"})
+@ToString(exclude = {"synchronizationService", "driveService"})
 public class GoogleDriveSynchronizer implements ISynchronizer {
 
     @NonNull
     private SynchronizationService synchronizationService;
     @NonNull
-    private Drive driveService;
+    private GoogleDriveService driveService;
 
-    private String savedStartPageToken;
-    private String rootName;
 
     @Async
     @Override
@@ -72,16 +64,13 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
         );
     }
 
-    @SneakyThrows(IOException.class)
     private boolean isFileNeededToUpdate(KoxFile koxFile) {
-        String currentFileId = getDriveId(koxFile.getName(), koxFile.getPath());
+        String currentFileId = driveService.getId(koxFile.getName(), koxFile.getPath());
         if (currentFileId == null)
             return true;
 
-        File currentFile = driveService.files().get(currentFileId).setFields("modifiedTime").execute();
-
+        Instant currentFileModificationTime = driveService.getModificationDate(currentFileId);
         Instant changedFileModificationTime = koxFile.getModificationDate().toInstant();
-        Instant currentFileModificationTime = Instant.ofEpochMilli(currentFile.getModifiedTime().getValue());
 
         log.info("changedFileModificationTime " + changedFileModificationTime);
         log.info("currentFileModificationTime " + currentFileModificationTime);
@@ -89,29 +78,15 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
         return currentFileModificationTime.plusSeconds(5).isBefore(changedFileModificationTime);
     }
 
-    @SneakyThrows(IOException.class)
     private void fileDeleted(KoxFile koxFile) {
         log.info("Removing file " + koxFile);
-        String fileId = getDriveId(koxFile.getName(), koxFile.getPath());
+        String fileId = driveService.getId(koxFile.getName(), koxFile.getPath());
         if (fileId != null)
-            driveService.files().delete(fileId).execute();
+            driveService.delete(fileId);
         else
             log.warning("File do not exists " + koxFile);
     }
 
-
-    @SneakyThrows(IOException.class)
-    private String getDriveId(String name, String path) {
-        FileList result = driveService.files().list()
-                .setQ(String.format("trashed = false and name='%s'", name))
-                .execute();
-
-        return result.getFiles().stream()
-                .map(File::getId)
-                .filter(id -> getFilePath(id, name).equals(path))
-                .findAny()
-                .orElse(null);
-    }
 
     @SneakyThrows(IOException.class)
     private void fileModified(KoxFile koxFile) {
@@ -125,17 +100,13 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
 
     private void sendRegularFile(KoxFile koxFile) throws IOException {
         log.info("Sending file: " + koxFile.getName());
-        File fileMetadata = new File();
-        fileMetadata.setName(koxFile.getName()); // TODO: set parent directory
         InputStream inputStream = koxFile.getSource().getInputStream(koxFile);
-        InputStreamContent inputStreamContent = new InputStreamContent("text/plain", inputStream);
-        driveService.files().create(fileMetadata, inputStreamContent)
-                .execute();
+        driveService.create(koxFile.getName(), inputStream);
     }
 
     private void sendDirectoryRecursive(KoxFile koxFile) throws IOException {
         log.info("Sending directory: " + koxFile.getName());
-        if (getDriveId(koxFile.getName(), koxFile.getPath()) != null) {
+        if (driveService.getId(koxFile.getName(), koxFile.getPath()) != null) {
             log.warning("Directory already exits");
             return;
         }
@@ -144,20 +115,13 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
         String parentId = "root";
         StringBuilder currentPath = new StringBuilder(fileNames.get(0));
         for (String fileName : fileNames) {
-            String driveId = getDriveId(fileName, currentPath.toString());
+            String driveId = driveService.getId(fileName, currentPath.toString());
 
             if (driveId == null) {
-                File fileMetadata = new File();
-                fileMetadata.setName(fileName);
-                fileMetadata.setParents(Collections.singletonList(parentId));
-                fileMetadata.setMimeType("application/vnd.google-apps.folder");
-                File createdFile = driveService.files().create(fileMetadata).setFields("id").execute();
-                parentId = createdFile.getId();
+                parentId = driveService.createDirectory(parentId, fileName);
             } else {
                 parentId = driveId;
             }
-
-
             currentPath.append("/").append(fileName);
         }
     }
@@ -165,44 +129,26 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
 
     @Override
     public InputStream getInputStream(@NonNull final KoxFile koxFile) {
-        try {
-            return driveService.files().get(koxFile.getId()).executeMediaAsInputStream();
-        } catch (IOException e) {
-            log.warning(e.getMessage());
-            return null;
-        }
+        return driveService.getInputStream(koxFile.getId());
     }
 
     @PostConstruct
-    @SneakyThrows(IOException.class)
     public void start() {
         synchronizationService.register(this);
-        StartPageToken response = driveService.changes()
-                .getStartPageToken().execute();
 
-        log.info("Start token: " + response.getStartPageToken());
-        savedStartPageToken = response.getStartPageToken();
     }
 
-    @SneakyThrows(value = {IOException.class, InterruptedException.class})
+    @SneakyThrows(value = InterruptedException.class)
     @Async
     public void startListening() {
-        String pageToken = savedStartPageToken;
-        rootName = driveService.files().get("root").setFields("name").execute().getName();
-        while (pageToken != null) {
-
-            ChangeList changes = driveService.changes().list(pageToken).execute();
-            for (Change change : changes.getChanges()) {
+        List<Change> changes;
+        while ((changes = driveService.getChanges()) != null) {
+            for (Change change : changes) {
                 processChange(change);
             }
-            if (changes.getNewStartPageToken() != null) {
-                savedStartPageToken = changes.getNewStartPageToken();
-            }
-            pageToken = changes.getNextPageToken();
+            log.warning("PING");
+            Thread.sleep(1000);
         }
-
-        Thread.sleep(1000);
-        startListening();
     }
 
     @Async
@@ -228,28 +174,11 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
     }
 
     private String getFilePath(File file) {
-        return getFilePath(file.getId(), file.getName());
+        return driveService.getFilePath(file.getId(), file.getName());
     }
 
-    @SneakyThrows(IOException.class)
-    private String getFilePath(String startFileId, String fileName) {
-        StringBuilder stringBuilder = new StringBuilder(fileName);
-
-        File file = driveService.files().get(startFileId).setFields("id, parents, name").execute();
-        while (file.getParents() != null) {
-            String parentId = file.getParents().get(0); // PoC
-            file = driveService.files().get(parentId).setFields("id, parents, name").execute();
-            if (!file.getName().equals(rootName))
-                stringBuilder.insert(0, file.getName() + "/");
-        }
-
-        return stringBuilder.toString();
-    }
-
-    @SneakyThrows(IOException.class)
     private EventType resolveEventType(Change change) {
-        File file = driveService.files().get(change.getFileId()).setFields("trashed").execute();
-        return file.getTrashed() ? EventType.DELETE : EventType.MODIFY;
+        return driveService.isTrashed(change.getFileId()) ? EventType.DELETE : EventType.MODIFY;
     }
 
     private FileType resolveFileType(String mimeType) {
