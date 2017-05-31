@@ -2,14 +2,14 @@ package com.dropkox.synchronizer;
 
 import com.dropkox.model.FileEvent;
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.log4j.Log4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
 import java.util.Set;
 
-@Log
+@Log4j
 @Service
 public class SynchronizationService {
 

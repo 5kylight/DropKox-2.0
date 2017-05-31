@@ -7,7 +7,7 @@ import com.sun.nio.file.SensitivityWatchEventModifier;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import lombok.extern.java.Log;
+import lombok.extern.log4j.Log4j;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -36,7 +36,7 @@ import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
 
 /* Source http://fabriziofortino.github.io/articles/recursive-watchservice-java8/ */
 
-@Log
+@Log4j
 @RequiredArgsConstructor
 public class RecursiveWatcherService {
 
@@ -99,7 +99,7 @@ public class RecursiveWatcherService {
 
                 final Path dir = keys.get(key);
                 if (dir == null) {
-                    log.warning("WatchKey " + key + " not recognized!");
+                    log.warn("WatchKey " + key + " not recognized!");
                     continue;
                 }
                 key.pollEvents().stream()
@@ -120,7 +120,7 @@ public class RecursiveWatcherService {
         Boolean isDirectory = absPath.toFile().isDirectory();
         String relativeFromPath = dir.toString().replaceFirst(rootFolder.getAbsolutePath(), "").trim();
 
-        if(!relativeFromPath.isEmpty())
+        if (!relativeFromPath.isEmpty())
             relativeFromPath += "/";
 
         Path relativeFromRootPath = Paths.get(relativeFromPath + watchEvent.context());

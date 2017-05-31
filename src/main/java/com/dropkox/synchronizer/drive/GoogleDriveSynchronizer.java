@@ -12,7 +12,7 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.ToString;
-import lombok.extern.java.Log;
+import lombok.extern.log4j.Log4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -35,7 +35,7 @@ import static javaslang.API.run;
 import static javaslang.Predicates.is;
 import static javaslang.Predicates.isIn;
 
-@Log
+@Log4j
 @Component
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 @ToString(exclude = {"synchronizationService", "driveService"})
@@ -52,7 +52,7 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
     public void process(@NonNull final FileEvent fileEvent) {
         KoxFile koxFile = fileEvent.getKoxFile();
         if (!isFileNeededToUpdate(koxFile)) {
-            log.warning("Ignoring change: " + fileEvent);
+            log.warn("Ignoring change: " + fileEvent);
             return;
         }
         Match(fileEvent.getEventType()).of(
@@ -84,7 +84,7 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
         if (fileId != null)
             driveService.delete(fileId);
         else
-            log.warning("File do not exists " + koxFile);
+            log.warn("File do not exists " + koxFile);
     }
 
 
@@ -107,7 +107,7 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
     private void sendDirectoryRecursive(KoxFile koxFile) throws IOException {
         log.info("Sending directory: " + koxFile.getName());
         if (driveService.getId(koxFile.getName(), koxFile.getPath()) != null) {
-            log.warning("Directory already exits");
+            log.warn("Directory already exits");
             return;
         }
 
@@ -146,7 +146,7 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
             for (Change change : changes) {
                 processChange(change);
             }
-            log.warning("PING");
+            log.trace("PING");
             Thread.sleep(1000);
         }
     }
@@ -170,7 +170,7 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
                     .build();
 
             synchronizationService.accept(fileEvent);
-        } else log.warning(String.format("File with ID: %s do not exists!", change.getFileId()));
+        } else log.warn(String.format("File with ID: %s do not exists!", change.getFileId()));
     }
 
     private String getFilePath(File file) {

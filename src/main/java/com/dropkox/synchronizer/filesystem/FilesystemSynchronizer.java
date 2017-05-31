@@ -12,7 +12,7 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.ToString;
-import lombok.extern.java.Log;
+import lombok.extern.log4j.Log4j;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jetty.util.ConcurrentHashSet;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,8 +42,8 @@ import static javaslang.API.run;
 import static javaslang.Predicates.is;
 import static javaslang.Predicates.isIn;
 
-@Log
 @Component
+@Log4j
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 @ToString(exclude = {"synchronizationService", "recursiveWatcherService"})
 public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventProcessor {
@@ -96,7 +96,7 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
                 .build();
 
         if (inProgressPaths.contains(getAbsolutePath(koxFile))) {
-            log.warning("File under processing");
+            log.debug("File under processing");
             return;
         }
 
@@ -109,7 +109,7 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
         KoxFile koxFile = fileEvent.getKoxFile();
 
         if (!isFileNeededToUpdate(koxFile)) {
-            log.warning("Ignoring change: " + fileEvent);
+            log.warn("Ignoring change: " + fileEvent);
             return;
         }
 
@@ -135,8 +135,8 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
         } catch (IOException e) {
             e.printStackTrace();
         }
-        log.info("changedFileModificationTime " + changedFileModificationTime);
-        log.info("currentFileModificationTime " + currentFileModificationTime);
+        log.debug("changedFileModificationTime " + changedFileModificationTime);
+        log.debug("currentFileModificationTime " + currentFileModificationTime);
 
         return currentFileModificationTime.plusSeconds(5).isBefore(changedFileModificationTime);
     }
@@ -147,7 +147,7 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
         try {
             return new FileInputStream(rootFolder + "/" + koxFile.getPath());
         } catch (FileNotFoundException e) {
-            log.warning("File not found: " + koxFile.getId());
+            log.warn("File not found: " + koxFile.getId());
             return null;
         }
     }
@@ -172,7 +172,7 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
             Files.copy(inputStream, absolutePath, StandardCopyOption.REPLACE_EXISTING);
             inProgressPaths.remove(absolutePath);
         } else
-            log.warning("Input stream is null!");
+            log.warn("Input stream is null!");
     }
 
     @SneakyThrows(IOException.class)
@@ -180,7 +180,7 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
         log.info("Saving directory: " + koxFile.getName());
 
         if (Files.exists(getAbsolutePath(koxFile))) {
-            log.warning("Directory already exits " + koxFile);
+            log.warn("Directory already exits " + koxFile);
             return;
         }
 

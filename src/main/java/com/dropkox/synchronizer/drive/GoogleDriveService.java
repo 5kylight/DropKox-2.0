@@ -12,6 +12,7 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.java.Log;
+import lombok.extern.log4j.Log4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-@Log
+@Log4j
 @Service
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 public class GoogleDriveService {
@@ -38,7 +39,7 @@ public class GoogleDriveService {
         try {
             rootName = driveService.files().get("root").setFields("name").execute().getName();
         } catch (IOException e) {
-            log.warning(e.getMessage());
+            log.warn(e.getMessage());
             rootName = "root";
         }
         try {
@@ -47,7 +48,7 @@ public class GoogleDriveService {
             log.info("Start token: " + response.getStartPageToken());
             savedStartPageToken = response.getStartPageToken();
         } catch (IOException e) {
-            log.warning(e.getMessage());
+            log.warn(e.getMessage());
         }
 
     }
@@ -60,7 +61,7 @@ public class GoogleDriveService {
             try {
                 changes = driveService.changes().list(savedStartPageToken).execute();
             } catch (IOException e) {
-                log.warning(e.getMessage());
+                log.warn(e.getMessage());
                 return null;
             }
 
@@ -80,7 +81,7 @@ public class GoogleDriveService {
         try {
             currentFile = driveService.files().get(fileId).setFields("modifiedTime").execute();
         } catch (IOException e) {
-            log.warning(e.getMessage());
+            log.warn(e.getMessage());
             return null;
         }
         return Instant.ofEpochMilli(currentFile.getModifiedTime().getValue());
@@ -125,7 +126,7 @@ public class GoogleDriveService {
         try {
             driveService.files().delete(fileId).execute();
         } catch (IOException e) {
-            log.warning(e.getMessage());
+            log.warn(e.getMessage());
         }
     }
 
@@ -138,7 +139,7 @@ public class GoogleDriveService {
             driveService.files().create(fileMetadata, inputStreamContent)
                     .execute();
         } catch (IOException e) {
-            log.warning(e.getMessage());
+            log.warn(e.getMessage());
         }
     }
 
@@ -150,7 +151,7 @@ public class GoogleDriveService {
         try {
             return driveService.files().create(fileMetadata).setFields("id").execute().getId();
         } catch (IOException e) {
-            log.warning(e.getMessage());
+            log.warn(e.getMessage());
             return null;
         }
     }
@@ -159,7 +160,7 @@ public class GoogleDriveService {
         try {
             return driveService.files().get(fileId).executeMediaAsInputStream();
         } catch (IOException e) {
-            log.warning(e.getMessage());
+            log.warn(e.getMessage());
             return null;
         }
     }
