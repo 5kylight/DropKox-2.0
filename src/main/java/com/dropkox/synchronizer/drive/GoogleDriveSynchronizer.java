@@ -101,7 +101,7 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
     private void sendRegularFile(KoxFile koxFile) throws IOException {
         log.info("Sending file: " + koxFile.getName());
         InputStream inputStream = koxFile.getSource().getInputStream(koxFile);
-        driveService.create(koxFile.getName(), inputStream);
+        driveService.create(koxFile.getName(), koxFile.getPath(), inputStream);
     }
 
     private void sendDirectoryRecursive(KoxFile koxFile) throws IOException {

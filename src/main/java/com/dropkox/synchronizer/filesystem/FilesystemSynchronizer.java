@@ -82,10 +82,12 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
             modificationDate = Instant.MIN;
         }
 
+        String filePath = path.toString().startsWith("/") ? path.toString().substring(1) : path.toString();
+
         KoxFile koxFile = KoxFile.builder()
                 .fileType(fileType)
-                .path(path.toString())
-                .id(path.toString())
+                .path(filePath)
+                .id(filePath)
                 .name(name)
                 .source(this)
                 .modificationDate(Date.from(modificationDate))

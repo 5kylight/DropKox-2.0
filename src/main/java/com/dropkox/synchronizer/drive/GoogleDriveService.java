@@ -1,8 +1,11 @@
 package com.dropkox.synchronizer.drive;
 
 
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.client.http.InputStreamContent;
+import com.google.api.client.json.GenericJson;
 import com.google.api.services.drive.Drive;
+import com.google.api.services.drive.DriveRequest;
 import com.google.api.services.drive.model.Change;
 import com.google.api.services.drive.model.ChangeList;
 import com.google.api.services.drive.model.File;
@@ -27,6 +30,9 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 public class GoogleDriveService {
+    private static final String USER_RATE_LIMIT_EXCEEDED = "User Rate Limit Exceeded";
+    private static final int FORBIDDEN_CODE = 403;
+
     @NonNull
     private Drive driveService;
 
@@ -36,15 +42,15 @@ public class GoogleDriveService {
     @PostConstruct
     private void init() {
         try {
-            rootName = driveService.files().get("root").setFields("name").execute().getName();
+            rootName = ((File) executeRequest(driveService.files().get("root").setFields("name"))).getName();
         } catch (IOException e) {
             log.warn(e.getMessage());
             rootName = "root";
         }
         try {
-            StartPageToken response = driveService.changes()
-                    .getStartPageToken().execute();
-            log.info("Start token: " + response.getStartPageToken());
+            StartPageToken response = (StartPageToken) executeRequest(driveService.changes()
+                    .getStartPageToken());
+            log.debug("Start token: " + response.getStartPageToken());
             savedStartPageToken = response.getStartPageToken();
         } catch (IOException e) {
             log.warn(e.getMessage());
@@ -58,7 +64,7 @@ public class GoogleDriveService {
         while (pageToken != null) {
             ChangeList changes;
             try {
-                changes = driveService.changes().list(savedStartPageToken).execute();
+                changes = (ChangeList) executeRequest(driveService.changes().list(savedStartPageToken));
             } catch (IOException e) {
                 log.warn(e.getMessage());
                 return null;
@@ -78,7 +84,7 @@ public class GoogleDriveService {
     Instant getModificationDate(@NonNull final String fileId) {
         File currentFile;
         try {
-            currentFile = driveService.files().get(fileId).setFields("modifiedTime").execute();
+            currentFile = (File) executeRequest(driveService.files().get(fileId).setFields("modifiedTime"));
         } catch (IOException e) {
             log.warn(e.getMessage());
             return null;
@@ -89,9 +95,8 @@ public class GoogleDriveService {
 
     @SneakyThrows(IOException.class)
     String getId(@NonNull final String name, @NonNull final String path) {
-        FileList result = driveService.files().list()
-                .setQ(String.format("trashed = false and name='%s'", name))
-                .execute();
+        FileList result = (FileList) executeRequest(driveService.files().list()
+                .setQ(String.format("trashed = false and name='%s'", name)));
 
         return result.getFiles().stream()
                 .map(File::getId)
@@ -100,14 +105,15 @@ public class GoogleDriveService {
                 .orElse(null);
     }
 
+
     @SneakyThrows(IOException.class)
     String getFilePath(@NonNull final String startFileId, @NonNull final String fileName) {
         StringBuilder stringBuilder = new StringBuilder(fileName);
 
-        File file = driveService.files().get(startFileId).setFields("id, parents, name").execute();
+        File file = (File) executeRequest(driveService.files().get(startFileId).setFields("id, parents, name"));
         while (file.getParents() != null) {
             String parentId = file.getParents().get(0); // PoC
-            file = driveService.files().get(parentId).setFields("id, parents, name").execute();
+            file = (File) executeRequest(driveService.files().get(parentId).setFields("id, parents, name"));
             if (!file.getName().equals(rootName))
                 stringBuilder.insert(0, file.getName() + "/");
         }
@@ -117,26 +123,36 @@ public class GoogleDriveService {
 
     @SneakyThrows(IOException.class)
     Boolean isTrashed(@NonNull final String fileId) {
-        File file = driveService.files().get(fileId).setFields("trashed").execute();
+        File file = (File) executeRequest(driveService.files().get(fileId).setFields("trashed"));
         return file.getTrashed();
     }
 
     void delete(@NonNull final String fileId) {
         try {
-            driveService.files().delete(fileId).execute();
+            executeRequest(driveService.files().delete(fileId));
         } catch (IOException e) {
             log.warn(e.getMessage());
         }
     }
 
-    void create(@NonNull final String name, @NonNull final InputStream inputStream) {
+    void create(@NonNull final String name, @NonNull final String path, @NonNull final InputStream inputStream) {
         File fileMetadata = new File();
-        fileMetadata.setName(name); // TODO: set parent directory
+
+        // Setting parent
+        if (path.split("/").length > 1) {
+            String parentPath = path.replace(name, "");
+            String parentPathTrimmed = parentPath.endsWith("/") ? parentPath.substring(0, parentPath.length() - 1) : parentPath;
+            String parentName = parentPathTrimmed.substring(parentPathTrimmed.lastIndexOf("/") + 1);
+            String parentId = getId(parentName, parentPathTrimmed);
+
+            fileMetadata.setParents(Collections.singletonList(parentId));
+        }
+
+        fileMetadata.setName(name);
         InputStreamContent inputStreamContent = new InputStreamContent("text/plain", inputStream);
 
         try {
-            driveService.files().create(fileMetadata, inputStreamContent)
-                    .execute();
+            executeRequest(driveService.files().create(fileMetadata, inputStreamContent));
         } catch (IOException e) {
             log.warn(e.getMessage());
         }
@@ -148,7 +164,7 @@ public class GoogleDriveService {
         fileMetadata.setParents(Collections.singletonList(parentId));
         fileMetadata.setMimeType("application/vnd.google-apps.folder");
         try {
-            return driveService.files().create(fileMetadata).setFields("id").execute().getId();
+            return ((File) executeRequest(driveService.files().create(fileMetadata).setFields("id"))).getId();
         } catch (IOException e) {
             log.warn(e.getMessage());
             return null;
@@ -161,6 +177,23 @@ public class GoogleDriveService {
         } catch (IOException e) {
             log.warn(e.getMessage());
             return null;
+        }
+    }
+
+
+    private GenericJson executeRequest(DriveRequest driveRequest) throws IOException {
+        try {
+            return (GenericJson) driveRequest.execute();
+        } catch (GoogleJsonResponseException e) {
+            if (e.getDetails().getMessage().equals(USER_RATE_LIMIT_EXCEEDED) && e.getDetails().getCode() == FORBIDDEN_CODE) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e1) {
+                    e1.printStackTrace();
+                }
+                return executeRequest(driveRequest);
+            }
+            throw e;
         }
     }
 

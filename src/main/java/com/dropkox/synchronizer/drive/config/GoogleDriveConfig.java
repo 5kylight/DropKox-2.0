@@ -62,7 +62,7 @@ public class GoogleDriveConfig {
                         .build();
         Credential credential = new AuthorizationCodeInstalledApp(
                 flow, new LocalServerReceiver()).authorize("user");
-        log.info("Credentials saved to " + DATA_STORE_DIR.getAbsolutePath());
+        log.debug("Credentials saved to " + DATA_STORE_DIR.getAbsolutePath());
         return credential;
     }
 
