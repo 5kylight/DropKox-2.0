@@ -33,6 +33,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Optional;
 import java.util.Set;
 
 import static javaslang.API.$;
@@ -72,15 +73,15 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
 
     @Override
     public void processFilesystemEvent(@NonNull final Path path, @NonNull final EventType eventType, @NonNull final FileType fileType) {
-
-
         String name = Arrays.stream(path.toString().split("/")).filter(p -> !p.isEmpty()).reduce((f, s) -> s).orElse(null);
-        Instant modificationDate = null;
+        Instant modificationDate;
         try {
             modificationDate = eventType == EventType.DELETE || fileType == FileType.DIR ? Instant.now() : Files.getLastModifiedTime(Paths.get(rootFolder + "/" + path)).toInstant();
         } catch (IOException e) {
-            e.printStackTrace();
+            log.warn(e);
+            modificationDate = Instant.MIN;
         }
+
         KoxFile koxFile = KoxFile.builder()
                 .fileType(fileType)
                 .path(path.toString())
@@ -95,7 +96,7 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
                 .timestamp(System.currentTimeMillis())
                 .build();
 
-        if (inProgressPaths.contains(getAbsolutePath(koxFile))) {
+        if (inProgressPaths.contains(getAbsolutePath(koxFile.getPath()))) {
             log.debug("File under processing");
             return;
         }
@@ -107,7 +108,6 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
     @Async
     public void process(@NonNull final FileEvent fileEvent) {
         KoxFile koxFile = fileEvent.getKoxFile();
-
         if (!isFileNeededToUpdate(koxFile)) {
             log.warn("Ignoring change: " + fileEvent);
             return;
@@ -123,18 +123,20 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
     }
 
     private boolean isFileNeededToUpdate(KoxFile koxFile) {
-        Path absolutePath = getAbsolutePath(koxFile);
+        Path absolutePath = getAbsolutePath(koxFile.getPath());
 
         if (Files.notExists(absolutePath))
             return true;
 
-        Instant changedFileModificationTime = koxFile.getModificationDate().toInstant();
-        Instant currentFileModificationTime = null;
+        Instant currentFileModificationTime;
         try {
             currentFileModificationTime = Files.getLastModifiedTime(absolutePath).toInstant();
         } catch (IOException e) {
-            e.printStackTrace();
+            log.warn("Cannot take modification time", e);
+            return true;
         }
+
+        Instant changedFileModificationTime = koxFile.getModificationDate().toInstant();
         log.debug("changedFileModificationTime " + changedFileModificationTime);
         log.debug("currentFileModificationTime " + currentFileModificationTime);
 
@@ -154,20 +156,18 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
 
     @SneakyThrows(IOException.class)
     private void fileModified(KoxFile koxFile) {
-
         if (koxFile.getFileType() == FileType.REGULAR_FILE)
             saveRegularFile(koxFile);
         else
             saveDirectory(koxFile);
     }
 
-
     private void saveRegularFile(KoxFile koxFile) throws IOException {
         log.info("Saving file: " + koxFile.getName());
         InputStream inputStream = koxFile.getSource().getInputStream(koxFile);
 
         if (inputStream != null) {
-            Path absolutePath = getAbsolutePath(koxFile);
+            Path absolutePath = getAbsolutePath(koxFile.getPath());
             inProgressPaths.add(absolutePath);
             Files.copy(inputStream, absolutePath, StandardCopyOption.REPLACE_EXISTING);
             inProgressPaths.remove(absolutePath);
@@ -179,58 +179,54 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
     private void saveDirectory(KoxFile koxFile) {
         log.info("Saving directory: " + koxFile.getName());
 
-        if (Files.exists(getAbsolutePath(koxFile))) {
+        Path absolutePath = getAbsolutePath(koxFile.getPath());
+        if (Files.exists(absolutePath)) {
             log.warn("Directory already exits " + koxFile);
             return;
         }
 
-        Path absolutePath = getAbsolutePath(koxFile);
         inProgressPaths.add(absolutePath);
         Files.createDirectory(absolutePath);
         inProgressPaths.remove(absolutePath);
-
     }
-
 
     private void fileDeleted(KoxFile koxFile) {
         if (koxFile.getFileType() == FileType.REGULAR_FILE)
             deleteRegularFile(koxFile);
         else
             deleteDirectory(koxFile);
-
     }
 
     private void deleteRegularFile(KoxFile koxFile) {
         log.info("Removing file: " + koxFile);
 
-        Path absolutePath = getAbsolutePath(koxFile);
+        Path absolutePath = getAbsolutePath(koxFile.getPath());
         if (!absolutePath.startsWith(rootFolder.getAbsolutePath()))
             throw new RuntimeException("OMG!!!! Run away");
 
         inProgressPaths.add(absolutePath);
-        absolutePath.toFile().delete(); // VERY, VERY DANGEROUS!!!
+        boolean success = Optional.ofNullable(absolutePath.toFile()).map(File::delete).orElse(false);
+        if (!success)
+            log.warn("Couldn't delete file: " + koxFile);
         inProgressPaths.remove(absolutePath);
     }
 
     private void deleteDirectory(KoxFile koxFile) {
         log.info("Removing directory: " + koxFile);
         try {
-
-            Path absolutePath = getAbsolutePath(koxFile);
+            Path absolutePath = getAbsolutePath(koxFile.getPath());
             if (!absolutePath.startsWith(rootFolder.getAbsolutePath()))
                 throw new RuntimeException("OMG!!!! Run away");
             inProgressPaths.add(absolutePath);
             FileUtils.deleteDirectory(absolutePath.toFile()); // VERY, VERY DANGEROUS!!!
             inProgressPaths.remove(absolutePath);
-
         } catch (IOException e) {
-            e.printStackTrace();
+            log.warn(e);
         }
     }
 
-
-    private Path getAbsolutePath(KoxFile koxFile) {
-        return Paths.get(rootFolder + "/" + koxFile.getPath());
+    private Path getAbsolutePath(String path) {
+        return Paths.get(rootFolder + "/" + path);
     }
 
 

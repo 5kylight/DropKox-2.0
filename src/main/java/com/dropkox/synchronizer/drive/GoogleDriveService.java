@@ -11,7 +11,6 @@ import com.google.api.services.drive.model.StartPageToken;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import lombok.extern.java.Log;
 import lombok.extern.log4j.Log4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -164,6 +163,5 @@ public class GoogleDriveService {
             return null;
         }
     }
-
 
 }

@@ -126,7 +126,6 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
         }
     }
 
-
     @Override
     public InputStream getInputStream(@NonNull final KoxFile koxFile) {
         return driveService.getInputStream(koxFile.getId());
@@ -184,6 +183,5 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
     private FileType resolveFileType(String mimeType) {
         return mimeType.equals("application/vnd.google-apps.folder") ? DIR : REGULAR_FILE;
     }
-
 
 }

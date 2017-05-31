@@ -35,8 +35,6 @@ public class GoogleDriveConfig {
     @Value("${app.data}")
     private java.io.File DATA_STORE_DIR;
 
-    private FileDataStoreFactory DATA_STORE_FACTORY;
-
     private static final JsonFactory JSON_FACTORY =
             JacksonFactory.getDefaultInstance();
 
@@ -47,7 +45,7 @@ public class GoogleDriveConfig {
     @SneakyThrows(GeneralSecurityException.class)
     private Credential authorize() throws IOException {
         HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-        DATA_STORE_FACTORY = new FileDataStoreFactory(DATA_STORE_DIR);
+        FileDataStoreFactory DATA_STORE_FACTORY = new FileDataStoreFactory(DATA_STORE_DIR);
 
         // Load client secrets.
         InputStream in =
@@ -67,7 +65,6 @@ public class GoogleDriveConfig {
         log.info("Credentials saved to " + DATA_STORE_DIR.getAbsolutePath());
         return credential;
     }
-
 
     @Bean
     public Drive driveService() throws IOException {
