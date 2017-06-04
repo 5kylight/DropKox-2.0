@@ -73,6 +73,11 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
 
     @Override
     public void processFilesystemEvent(@NonNull final Path path, @NonNull final EventType eventType, @NonNull final FileType fileType) {
+
+        if (eventType == EventType.CREATE) {
+            return; // Ignore
+        }
+
         String name = Arrays.stream(path.toString().split("/")).filter(p -> !p.isEmpty()).reduce((f, s) -> s).orElse(null);
         Instant modificationDate;
         try {
