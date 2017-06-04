@@ -73,12 +73,7 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
 
     @Override
     public void processFilesystemEvent(@NonNull final Path path, @NonNull final EventType eventType, @NonNull final FileType fileType) {
-
-        if (eventType == EventType.CREATE) {
-            return; // Ignore
-        }
-
-        String name = Arrays.stream(path.toString().split("/")).filter(p -> !p.isEmpty()).reduce((f, s) -> s).orElse(null);
+        String name = getNameFromPath(path);
         Instant modificationDate;
         try {
             modificationDate = eventType == EventType.DELETE || fileType == FileType.DIR ? Instant.now() : Files.getLastModifiedTime(Paths.get(rootFolder + "/" + path)).toInstant();
@@ -109,7 +104,44 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
         }
 
         synchronizationService.accept(fileEvent);
+
+        if (fileType == FileType.DIR && eventType == EventType.CREATE)
+            acceptSubdirectories(path);
     }
+
+    private String getNameFromPath(@NonNull Path path) {
+        return Arrays.stream(path.toString().split("/")).filter(p -> !p.isEmpty()).reduce((f, s) -> s).orElse(null);
+    }
+
+    private void acceptSubdirectories(Path path) {
+        try {
+            Path relativeStartPath = Paths.get(rootFolder + "/" + path);
+            Files.walk(relativeStartPath).filter(s -> !s.equals(relativeStartPath)).map(filePath -> {
+                String notAbsolutePath = filePath.toString().replace(rootFolder + "/", "");
+                try {
+                    return KoxFile.builder()
+                            .fileType(filePath.toFile().isFile() ? FileType.REGULAR_FILE : FileType.DIR)
+                            .path(notAbsolutePath)
+                            .id(notAbsolutePath)
+                            .name(getNameFromPath(filePath))
+                            .source(this)
+                            .modificationDate(new Date(Files.getLastModifiedTime(filePath).toMillis()))
+                            .build();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                return null;
+            }).map(koxFile -> FileEvent.builder()
+                    .eventType(EventType.CREATE)
+                    .koxFile(koxFile)
+                    .timestamp(System.currentTimeMillis())
+                    .build()
+            ).forEach(synchronizationService::accept);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
 
     @Override
     @Async
@@ -130,6 +162,9 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
     }
 
     private boolean isFileNeededToUpdate(KoxFile koxFile) {
+        if (koxFile.getFileType() == FileType.DIR)
+            return true;
+
         Path absolutePath = getAbsolutePath(koxFile.getPath());
 
         if (Files.notExists(absolutePath))

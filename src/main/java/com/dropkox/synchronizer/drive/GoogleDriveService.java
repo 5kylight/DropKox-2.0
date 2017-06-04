@@ -81,7 +81,7 @@ public class GoogleDriveService {
     }
 
 
-    Instant getModificationDate(@NonNull final String fileId) {
+    synchronized Instant getModificationDate(@NonNull final String fileId) {
         File currentFile;
         try {
             currentFile = (File) executeRequest(driveService.files().get(fileId).setFields("modifiedTime"));
@@ -94,7 +94,7 @@ public class GoogleDriveService {
 
 
     @SneakyThrows(IOException.class)
-    String getId(@NonNull final String name, @NonNull final String path) {
+    synchronized String getId(@NonNull final String name, @NonNull final String path) {
         FileList result = (FileList) executeRequest(driveService.files().list()
                 .setQ(String.format("trashed = false and name='%s'", name)));
 
@@ -107,7 +107,7 @@ public class GoogleDriveService {
 
 
     @SneakyThrows(IOException.class)
-    String getFilePath(@NonNull final String startFileId, @NonNull final String fileName) {
+    synchronized String getFilePath(@NonNull final String startFileId, @NonNull final String fileName) {
         StringBuilder stringBuilder = new StringBuilder(fileName);
 
         File file = (File) executeRequest(driveService.files().get(startFileId).setFields("id, parents, name"));
@@ -122,12 +122,12 @@ public class GoogleDriveService {
     }
 
     @SneakyThrows(IOException.class)
-    Boolean isTrashed(@NonNull final String fileId) {
+    synchronized Boolean isTrashed(@NonNull final String fileId) {
         File file = (File) executeRequest(driveService.files().get(fileId).setFields("trashed"));
         return file.getTrashed();
     }
 
-    void delete(@NonNull final String fileId) {
+    synchronized  void delete(@NonNull final String fileId) {
         try {
             executeRequest(driveService.files().delete(fileId));
         } catch (IOException e) {
@@ -135,30 +135,21 @@ public class GoogleDriveService {
         }
     }
 
-    void create(@NonNull final String name, @NonNull final String path, @NonNull final InputStream inputStream) {
+    synchronized void createFile(@NonNull final String name, @NonNull final String parentId, @NonNull final InputStream inputStream) {
         File fileMetadata = new File();
-
-        // Setting parent
-        if (path.split("/").length > 1) {
-            String parentPath = path.replace(name, "");
-            String parentPathTrimmed = parentPath.endsWith("/") ? parentPath.substring(0, parentPath.length() - 1) : parentPath;
-            String parentName = parentPathTrimmed.substring(parentPathTrimmed.lastIndexOf("/") + 1);
-            String parentId = getId(parentName, parentPathTrimmed);
-
-            fileMetadata.setParents(Collections.singletonList(parentId));
-        }
-
+        fileMetadata.setParents(Collections.singletonList(parentId));
         fileMetadata.setName(name);
+        // TODO: resolve MimeType
         InputStreamContent inputStreamContent = new InputStreamContent("text/plain", inputStream);
 
         try {
             executeRequest(driveService.files().create(fileMetadata, inputStreamContent));
         } catch (IOException e) {
-            log.warn(e.getMessage());
+            log.warn(e);
         }
     }
 
-    String createDirectory(@NonNull final String parentId, @NonNull final String fileName) {
+    synchronized String createDirectory(@NonNull final String parentId, @NonNull final String fileName) {
         File fileMetadata = new File();
         fileMetadata.setName(fileName);
         fileMetadata.setParents(Collections.singletonList(parentId));
@@ -182,16 +173,20 @@ public class GoogleDriveService {
 
 
     private GenericJson executeRequest(DriveRequest driveRequest) throws IOException {
+        return executeRequestExpBackoff(driveRequest, 0);
+    }
+
+    private GenericJson executeRequestExpBackoff(DriveRequest driveRequest, double delayS) throws IOException {
         try {
             return (GenericJson) driveRequest.execute();
         } catch (GoogleJsonResponseException e) {
             if (e.getDetails().getMessage().equals(USER_RATE_LIMIT_EXCEEDED) && e.getDetails().getCode() == FORBIDDEN_CODE) {
                 try {
-                    Thread.sleep(1000);
+                    Thread.sleep((long) (1000 * delayS));
                 } catch (InterruptedException e1) {
                     e1.printStackTrace();
                 }
-                return executeRequest(driveRequest);
+                return executeRequestExpBackoff(driveRequest, Math.pow(2, delayS + 1));
             }
             throw e;
         }
