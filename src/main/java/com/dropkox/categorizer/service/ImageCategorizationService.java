@@ -46,13 +46,17 @@ public class ImageCategorizationService {
     }
 
     private List<ImageLabel> labelImageWithExternalAPI(Supplier<ClarifaiInput> clarifaiInputSupplier) {
-        List<ClarifaiOutput<Concept>> predictionResults = clarifaiClient.getDefaultModels()
-                .generalModel()
-                .predict()
-                .withInputs(clarifaiInputSupplier.get())
-                .executeSync()
-                .get();
-
+        List<ClarifaiOutput<Concept>> predictionResults = new LinkedList<>();
+        try {
+             predictionResults.addAll(clarifaiClient.getDefaultModels()
+                    .generalModel()
+                    .predict()
+                    .withInputs(clarifaiInputSupplier.get())
+                    .executeSync()
+                    .get());
+        } catch (Exception e ) {
+            e.printStackTrace();
+        }
         return Optional.of(predictionResults)
                 .filter(list -> !list.isEmpty())
                 .map(list -> list.get(0))

@@ -32,8 +32,12 @@ public class ImageCategorizationServiceTest {
             List<ImageLabel> results =
                     imageCategorizationService
                             .getLabelsForImage("https://samples.clarifai.com/metro-north.jpg", UrlType.WEB);
-
-            assertFalse("Method should throw exception in case of no labels.", results.isEmpty());
+            if (results.isEmpty()) {
+                fail("Method should throw exception in case of no labels.");
+            } else {
+                System.out.println("Classification results:");
+                results.stream().map(il -> il.getName() + "  " + il.getProbability()).forEach(System.out::println);
+            }
         } catch (NoLabelsAssignedException e) {
             fail("No labels has been assigned for provided photo URL. " +
                     "Requirements for integration with external service unsatisfied.");
@@ -51,7 +55,12 @@ public class ImageCategorizationServiceTest {
                     imageCategorizationService
                             .getLabelsForImage(file.getAbsolutePath(), UrlType.LOCAL);
 
-            assertFalse("Method should throw exception in case of no labels.", results.isEmpty());
+            if (results.isEmpty()) {
+                fail("Method should throw exception in case of no labels.");
+            } else {
+                System.out.println("Classification results:");
+                results.stream().map(il -> il.getName() + "  " + il.getProbability()).forEach(System.out::println);
+            }
         } catch (NoLabelsAssignedException e) {
             fail("No labels has been assigned for provided photo URL. " +
                     "Requirements for integration with external service unsatisfied.");

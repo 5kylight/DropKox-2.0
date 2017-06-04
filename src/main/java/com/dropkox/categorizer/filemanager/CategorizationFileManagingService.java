@@ -1,5 +1,6 @@
 package com.dropkox.categorizer.filemanager;
 
+import com.dropkox.categorizer.filemanager.strategies.FileTransferringHandler;
 import com.dropkox.categorizer.service.CategoryRetriever;
 import com.dropkox.categorizer.service.ImageCategorizationService;
 import com.dropkox.categorizer.suppliers.UrlType;
@@ -18,9 +19,7 @@ import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -32,6 +31,8 @@ import java.util.stream.Stream;
 public class CategorizationFileManagingService implements IFileSystemEventProcessor {
 
     private static List<String> existingCategories = new LinkedList<>();
+
+    private FileTransferringHandler fileTransferringHandler;
 
     private File inputFolder;
     private File outputFolder;
@@ -62,6 +63,8 @@ public class CategorizationFileManagingService implements IFileSystemEventProces
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        fileTransferringHandler = new FileTransferringHandler(inputFolder, outputFolder);
     }
 
     private void readExistingCategories() {
@@ -86,22 +89,16 @@ public class CategorizationFileManagingService implements IFileSystemEventProces
     public void processFilesystemEvent(@NonNull final Path path, @NonNull final EventType eventType, @NonNull final FileType fileType) {
         if (EventType.CREATE.equals(eventType) && !FileType.DIR.equals(fileType)) {
             try {
-                List<ImageLabel> labels = imageCategorizationService.getLabelsForImage(path.toAbsolutePath().toString(), UrlType.LOCAL);
+                String fileName = path.getFileName().toString();
+                String imgPath = inputFolder.getAbsolutePath().concat(File.separator).concat(fileName);
+                List<ImageLabel> labels = imageCategorizationService.getLabelsForImage(imgPath, UrlType.LOCAL);
 
-                moveFileToCategory(path, categoryRetriever.getCategoryName(existingCategories, labels));
+                String outputFolderName = categoryRetriever.getCategoryName(existingCategories, labels);
+                fileTransferringHandler.moveFile(fileName, outputFolderName);
 
             } catch (NoLabelsAssignedException e) {
                 e.printStackTrace();
             }
-        }
-    }
-
-    private void moveFileToCategory(Path path, String categoryName) {
-        String outputPath = outputFolder.getAbsolutePath() + File.separator + categoryName + path.getFileName();
-        try {
-            Files.move(path, Paths.get(outputPath));
-        } catch (IOException e) {
-            e.printStackTrace();
         }
     }
 }
