@@ -30,6 +30,7 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 public class CategorizationFileManagingService implements IFileSystemEventProcessor {
 
+    private static String DEFAULT_CATEGORY_NAME = "other";
     private static List<String> existingCategories = new LinkedList<>();
 
     private FileTransferringHandler fileTransferringHandler;
@@ -88,8 +89,9 @@ public class CategorizationFileManagingService implements IFileSystemEventProces
     @Override
     public void processFilesystemEvent(@NonNull final Path path, @NonNull final EventType eventType, @NonNull final FileType fileType) {
         if (EventType.CREATE.equals(eventType) && !FileType.DIR.equals(fileType)) {
+
+            String fileName = path.getFileName().toString();
             try {
-                String fileName = path.getFileName().toString();
                 String imgPath = inputFolder.getAbsolutePath().concat(File.separator).concat(fileName);
                 List<ImageLabel> labels = imageCategorizationService.getLabelsForImage(imgPath, UrlType.LOCAL);
 
@@ -97,7 +99,7 @@ public class CategorizationFileManagingService implements IFileSystemEventProces
                 fileTransferringHandler.moveFile(fileName, outputFolderName);
 
             } catch (NoLabelsAssignedException e) {
-                e.printStackTrace();
+                fileTransferringHandler.moveFile(fileName, DEFAULT_CATEGORY_NAME);
             }
         }
     }
