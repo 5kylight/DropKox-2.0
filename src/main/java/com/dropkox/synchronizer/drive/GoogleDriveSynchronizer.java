@@ -18,7 +18,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
-import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.Arrays;
@@ -65,6 +64,9 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
     }
 
     private boolean isFileNeededToUpdate(KoxFile koxFile) {
+        if (koxFile.getFileType() == DIR)
+            return true;
+
         String currentFileId = driveService.getId(koxFile.getName(), koxFile.getPath());
         if (currentFileId == null)
             return true;
@@ -87,8 +89,6 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
             log.warn("File do not exists " + koxFile);
     }
 
-
-    @SneakyThrows(IOException.class)
     private void fileModified(KoxFile koxFile) {
         if (koxFile.getFileType() == REGULAR_FILE) {
             sendRegularFile(koxFile);
@@ -97,21 +97,42 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
         }
     }
 
-
-    private void sendRegularFile(KoxFile koxFile) throws IOException {
+    private void sendRegularFile(KoxFile koxFile) {
         log.info("Sending file: " + koxFile.getName());
+        String actualId = driveService.getId(koxFile.getName(), koxFile.getPath());
+        if (actualId != null) {
+            log.debug("Updating file: " + koxFile.getName());
+            driveService.delete(actualId);
+        }
+
         InputStream inputStream = koxFile.getSource().getInputStream(koxFile);
-        driveService.create(koxFile.getName(), koxFile.getPath(), inputStream);
+        String filePath = koxFile.getPath();
+        String[] filePathSplited = filePath.split("/");
+        String parentId = "root";
+        if (filePathSplited.length > 1) {
+            String parentName = filePathSplited[filePathSplited.length - 1]; // last index
+            String parentPath = filePath.substring(0, filePath.lastIndexOf('/'));
+            String currentParentId = driveService.getId(parentName, parentPath);
+            if (currentParentId == null) {
+                parentId = createDirectoryRecursive(parentPath);
+            }
+        }
+
+        driveService.createFile(koxFile.getName(), parentId, inputStream);
     }
 
-    private void sendDirectoryRecursive(KoxFile koxFile) throws IOException {
+    private void sendDirectoryRecursive(KoxFile koxFile) {
         log.info("Sending directory: " + koxFile.getName());
         if (driveService.getId(koxFile.getName(), koxFile.getPath()) != null) {
             log.warn("Directory already exits");
             return;
         }
 
-        List<String> fileNames = Arrays.stream(koxFile.getPath().split("/")).filter(s -> !s.isEmpty()).collect(Collectors.toList());
+        createDirectoryRecursive(koxFile.getPath());
+    }
+
+    private String createDirectoryRecursive(String path) {
+        List<String> fileNames = Arrays.stream(path.split("/")).filter(s -> !s.isEmpty()).collect(Collectors.toList());
         String parentId = "root";
         StringBuilder currentPath = new StringBuilder(fileNames.get(0));
         for (String fileName : fileNames) {
@@ -124,6 +145,7 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
             }
             currentPath.append("/").append(fileName);
         }
+        return parentId;
     }
 
     @Override
@@ -152,8 +174,8 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
 
     @Async
     private void processChange(Change change) {
-        log.info("Change found for file: " + change.getFileId());
         if (change.getFile() != null) {
+            log.info("Change found for file: " + change.getFile().getName());
             String filePath = getFilePath(change.getFile());
             FileEvent fileEvent = FileEvent.builder()
                     .koxFile(KoxFile.builder()
