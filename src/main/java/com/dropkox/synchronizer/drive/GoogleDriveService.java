@@ -13,7 +13,6 @@ import com.google.api.services.drive.model.FileList;
 import com.google.api.services.drive.model.StartPageToken;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.extern.log4j.Log4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -93,41 +92,53 @@ public class GoogleDriveService {
     }
 
 
-    @SneakyThrows(IOException.class)
     synchronized String getId(@NonNull final String name, @NonNull final String path) {
-        FileList result = (FileList) executeRequest(driveService.files().list()
-                .setQ(String.format("trashed = false and name='%s'", name)));
+        try {
+            FileList result = (FileList) executeRequest(driveService.files().list()
+                    .setQ(String.format("trashed = false and name='%s'", name)));
 
-        return result.getFiles().stream()
-                .map(File::getId)
-                .filter(id -> getFilePath(id, name).equals(path))
-                .findAny()
-                .orElse(null);
+            return result.getFiles().stream()
+                    .map(File::getId)
+                    .filter(id -> getFilePath(id, name).equals(path))
+                    .findAny()
+                    .orElse(null);
+        } catch (IOException e) {
+            log.warn(e);
+            return null;
+        }
     }
 
 
-    @SneakyThrows(IOException.class)
     synchronized String getFilePath(@NonNull final String startFileId, @NonNull final String fileName) {
         StringBuilder stringBuilder = new StringBuilder(fileName);
+        try {
+            File file = (File) executeRequest(driveService.files().get(startFileId).setFields("id, parents, name"));
 
-        File file = (File) executeRequest(driveService.files().get(startFileId).setFields("id, parents, name"));
-        while (file.getParents() != null) {
-            String parentId = file.getParents().get(0); // PoC
-            file = (File) executeRequest(driveService.files().get(parentId).setFields("id, parents, name"));
-            if (!file.getName().equals(rootName))
-                stringBuilder.insert(0, file.getName() + "/");
+            while (file.getParents() != null) {
+                String parentId = file.getParents().get(0); // PoC
+                file = (File) executeRequest(driveService.files().get(parentId).setFields("id, parents, name"));
+                if (!file.getName().equals(rootName))
+                    stringBuilder.insert(0, file.getName() + "/");
+            }
+
+            return stringBuilder.toString();
+        } catch (IOException e) {
+            log.warn(e);
+            return null;
         }
-
-        return stringBuilder.toString();
     }
 
-    @SneakyThrows(IOException.class)
     synchronized Boolean isTrashed(@NonNull final String fileId) {
-        File file = (File) executeRequest(driveService.files().get(fileId).setFields("trashed"));
-        return file.getTrashed();
+        try {
+            File file = (File) executeRequest(driveService.files().get(fileId).setFields("trashed"));
+            return file.getTrashed();
+        } catch (IOException e) {
+            log.warn(e);
+            return true;
+        }
     }
 
-    synchronized  void delete(@NonNull final String fileId) {
+    synchronized void delete(@NonNull final String fileId) {
         try {
             executeRequest(driveService.files().delete(fileId));
         } catch (IOException e) {
@@ -139,14 +150,24 @@ public class GoogleDriveService {
         File fileMetadata = new File();
         fileMetadata.setParents(Collections.singletonList(parentId));
         fileMetadata.setName(name);
-        // TODO: resolve MimeType
-        InputStreamContent inputStreamContent = new InputStreamContent("text/plain", inputStream);
+        String fileType = getFileType(name);
+        InputStreamContent inputStreamContent = new InputStreamContent(fileType, inputStream);
 
         try {
             executeRequest(driveService.files().create(fileMetadata, inputStreamContent));
         } catch (IOException e) {
             log.warn(e);
         }
+    }
+
+    private String getFileType(String name) {
+        if(name.endsWith(".jpg") || name.endsWith(".jpeg"))
+            return "image/jpeg";
+        if(name.endsWith(".png"))
+            return "image/png";
+        if(name.endsWith(".pdf"))
+            return "text/pdf";
+        return "text/plain";
     }
 
     synchronized String createDirectory(@NonNull final String parentId, @NonNull final String fileName) {

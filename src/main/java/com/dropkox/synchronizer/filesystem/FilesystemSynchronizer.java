@@ -17,7 +17,6 @@ import org.apache.commons.io.FileUtils;
 import org.eclipse.jetty.util.ConcurrentHashSet;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
@@ -144,7 +143,6 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
 
 
     @Override
-    @Async
     public void process(@NonNull final FileEvent fileEvent) {
         KoxFile koxFile = fileEvent.getKoxFile();
         if (!isFileNeededToUpdate(koxFile)) {
@@ -196,7 +194,6 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
         }
     }
 
-    @SneakyThrows(IOException.class)
     private void fileModified(KoxFile koxFile) {
         if (koxFile.getFileType() == FileType.REGULAR_FILE)
             saveRegularFile(koxFile);
@@ -204,20 +201,24 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
             saveDirectory(koxFile);
     }
 
-    private void saveRegularFile(KoxFile koxFile) throws IOException {
+    private void saveRegularFile(KoxFile koxFile) {
         log.info("Saving file: " + koxFile.getName());
         InputStream inputStream = koxFile.getSource().getInputStream(koxFile);
 
         if (inputStream != null) {
             Path absolutePath = getAbsolutePath(koxFile.getPath());
             inProgressPaths.add(absolutePath);
-            Files.copy(inputStream, absolutePath, StandardCopyOption.REPLACE_EXISTING);
-            inProgressPaths.remove(absolutePath);
+            try {
+                Files.copy(inputStream, absolutePath, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                log.warn(e);
+            } finally {
+                inProgressPaths.remove(absolutePath);
+            }
         } else
             log.warn("Input stream is null!");
     }
 
-    @SneakyThrows(IOException.class)
     private void saveDirectory(KoxFile koxFile) {
         log.info("Saving directory: " + koxFile.getName());
 
@@ -228,8 +229,13 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
         }
 
         inProgressPaths.add(absolutePath);
-        Files.createDirectory(absolutePath);
-        inProgressPaths.remove(absolutePath);
+        try {
+            Files.createDirectory(absolutePath);
+        } catch (IOException e) {
+            log.warn(e);
+        } finally {
+            inProgressPaths.remove(absolutePath);
+        }
     }
 
     private void fileDeleted(KoxFile koxFile) {
@@ -262,6 +268,7 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
             inProgressPaths.add(absolutePath);
             FileUtils.deleteDirectory(absolutePath.toFile()); // VERY, VERY DANGEROUS!!!
             inProgressPaths.remove(absolutePath);
+            recursiveWatcherService.directoryRemoved(absolutePath);
         } catch (IOException e) {
             log.warn(e);
         }

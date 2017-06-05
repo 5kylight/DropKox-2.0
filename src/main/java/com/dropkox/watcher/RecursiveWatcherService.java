@@ -47,6 +47,7 @@ public class RecursiveWatcherService {
     private WatchService watcher;
 
     private ExecutorService executor;
+    private final Map<WatchKey, Path> keys = new HashMap<>();
 
     @PostConstruct
     public void init() throws IOException {
@@ -64,7 +65,6 @@ public class RecursiveWatcherService {
 
     @SuppressWarnings("unchecked")
     private void startRecursiveWatcher() throws IOException {
-        final Map<WatchKey, Path> keys = new HashMap<>();
 
         Consumer<Path> register = p -> {
             if (!p.toFile().exists() || !p.toFile().isDirectory()) {
@@ -127,6 +127,10 @@ public class RecursiveWatcherService {
 
         fileSystemEventProcessor.processFilesystemEvent(relativeFromRootPath, eventType, isDirectory ? FileType.DIR : FileType.REGULAR_FILE);
 
+        if (eventType == EventType.DELETE && keys.values().remove(absPath)) {
+            log.info("Unregistering to  " + absPath + " in watcher service");
+        }
+
         if (isDirectory) {
             register.accept(absPath);
         }
@@ -138,5 +142,11 @@ public class RecursiveWatcherService {
         if (kind == ENTRY_DELETE)
             return EventType.DELETE;
         return EventType.MODIFY;
+    }
+
+    public void directoryRemoved(@NonNull final Path absolutePath) {
+        if (keys.values().remove(absolutePath)) {
+            log.info("1Unregistering to  " + absolutePath + " in watcher service");
+        }
     }
 }

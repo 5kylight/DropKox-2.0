@@ -10,7 +10,6 @@ import com.google.api.services.drive.model.Change;
 import com.google.api.services.drive.model.File;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.ToString;
 import lombok.extern.log4j.Log4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,9 +45,8 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
     private GoogleDriveService driveService;
 
 
-    @Async
     @Override
-    public void process(@NonNull final FileEvent fileEvent) {
+    public synchronized void process(@NonNull final FileEvent fileEvent) {
         KoxFile koxFile = fileEvent.getKoxFile();
         if (!isFileNeededToUpdate(koxFile)) {
             log.warn("Ignoring change: " + fileEvent);
@@ -110,11 +108,13 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
         String[] filePathSplited = filePath.split("/");
         String parentId = "root";
         if (filePathSplited.length > 1) {
-            String parentName = filePathSplited[filePathSplited.length - 1]; // last index
+            String parentName = filePathSplited[filePathSplited.length - 2]; //
             String parentPath = filePath.substring(0, filePath.lastIndexOf('/'));
             String currentParentId = driveService.getId(parentName, parentPath);
             if (currentParentId == null) {
                 parentId = createDirectoryRecursive(parentPath);
+            } else {
+                parentId = currentParentId;
             }
         }
 
@@ -159,7 +159,6 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
 
     }
 
-    @SneakyThrows(value = InterruptedException.class)
     @Async
     public void startListening() {
         List<Change> changes;
@@ -168,7 +167,11 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
                 processChange(change);
             }
             log.trace("PING");
-            Thread.sleep(1000);
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                log.warn(e);
+            }
         }
     }
 
