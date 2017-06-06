@@ -12,6 +12,7 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.extern.log4j.Log4j;
+import net.jodah.expiringmap.ExpiringMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -22,6 +23,8 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.dropkox.model.FileType.DIR;
@@ -44,9 +47,12 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
     @NonNull
     private GoogleDriveService driveService;
 
+    private final Map<String, Object> recentUpdates = ExpiringMap.builder().expiration(5, TimeUnit.SECONDS).build();
 
     @Override
     public synchronized void process(@NonNull final FileEvent fileEvent) {
+        recentUpdates.put(fileEvent.getKoxFile().getPath(), new Object());
+
         KoxFile koxFile = fileEvent.getKoxFile();
         if (!isFileNeededToUpdate(koxFile)) {
             log.warn("Ignoring change: " + fileEvent);
@@ -59,6 +65,60 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
                     throw new UnsupportedOperationException("Event type not supported yet! " + fileEvent.getEventType());
                 }))
         );
+    }
+
+
+    @Override
+    public InputStream getInputStream(@NonNull final KoxFile koxFile) {
+        return driveService.getInputStream(koxFile.getId());
+    }
+
+    @PostConstruct
+    public void start() {
+        synchronizationService.register(this);
+
+    }
+
+    @Async
+    public void startListening() {
+        List<Change> changes;
+        while ((changes = driveService.getChanges()) != null) {
+            for (Change change : changes) {
+                processChange(change);
+            }
+            log.trace("PING");
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                log.warn(e);
+            }
+        }
+    }
+
+    @Async
+    private void processChange(Change change) {
+        if (change.getFile() != null) {
+            String filePath = getFilePath(change.getFile());
+            if (recentUpdates.containsKey(filePath)) {
+                log.debug("Skipping recent update");
+                return;
+            }
+            log.info("Change found for file: " + change.getFile().getName());
+            FileEvent fileEvent = FileEvent.builder()
+                    .koxFile(KoxFile.builder()
+                            .source(this)
+                            .id(change.getFileId())
+                            .fileType(resolveFileType(change.getFile().getMimeType()))
+                            .modificationDate(new Date(change.getTime().getValue()))
+                            .name(change.getFile().getName())
+                            .path(filePath)
+                            .build())
+                    .eventType(resolveEventType(change))
+                    .timestamp(change.getTime().getValue())
+                    .build();
+
+            synchronizationService.accept(fileEvent);
+        } else log.warn(String.format("File with ID: %s do not exists!", change.getFileId()));
     }
 
     private boolean isFileNeededToUpdate(KoxFile koxFile) {
@@ -147,56 +207,6 @@ public class GoogleDriveSynchronizer implements ISynchronizer {
         }
         return parentId;
     }
-
-    @Override
-    public InputStream getInputStream(@NonNull final KoxFile koxFile) {
-        return driveService.getInputStream(koxFile.getId());
-    }
-
-    @PostConstruct
-    public void start() {
-        synchronizationService.register(this);
-
-    }
-
-    @Async
-    public void startListening() {
-        List<Change> changes;
-        while ((changes = driveService.getChanges()) != null) {
-            for (Change change : changes) {
-                processChange(change);
-            }
-            log.trace("PING");
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                log.warn(e);
-            }
-        }
-    }
-
-    @Async
-    private void processChange(Change change) {
-        if (change.getFile() != null) {
-            log.info("Change found for file: " + change.getFile().getName());
-            String filePath = getFilePath(change.getFile());
-            FileEvent fileEvent = FileEvent.builder()
-                    .koxFile(KoxFile.builder()
-                            .source(this)
-                            .id(change.getFileId())
-                            .fileType(resolveFileType(change.getFile().getMimeType()))
-                            .modificationDate(new Date(change.getTime().getValue()))
-                            .name(change.getFile().getName())
-                            .path(filePath)
-                            .build())
-                    .eventType(resolveEventType(change))
-                    .timestamp(change.getTime().getValue())
-                    .build();
-
-            synchronizationService.accept(fileEvent);
-        } else log.warn(String.format("File with ID: %s do not exists!", change.getFileId()));
-    }
-
     private String getFilePath(File file) {
         return driveService.getFilePath(file.getId(), file.getName());
     }

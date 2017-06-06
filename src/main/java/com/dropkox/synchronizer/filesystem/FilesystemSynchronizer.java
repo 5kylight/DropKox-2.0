@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.ToString;
 import lombok.extern.log4j.Log4j;
+import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jetty.util.ConcurrentHashSet;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,8 +33,10 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static javaslang.API.$;
 import static javaslang.API.Case;
@@ -52,6 +55,7 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
     private File rootFolder;
 
     private final Set<Path> inProgressPaths = new ConcurrentHashSet<>();
+    private final Map<String, Object> recentUpdates = ExpiringMap.builder().expiration(5, TimeUnit.SECONDS).build();
 
     @NonNull
     private SynchronizationService synchronizationService;
@@ -71,7 +75,41 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
     }
 
     @Override
+    public void process(@NonNull final FileEvent fileEvent) {
+        recentUpdates.put(fileEvent.getKoxFile().getPath(), new Object());
+
+        KoxFile koxFile = fileEvent.getKoxFile();
+        if (!isFileNeededToUpdate(koxFile)) {
+            log.warn("Ignoring change: " + fileEvent);
+            return;
+        }
+
+        Match(fileEvent.getEventType()).of(
+                Case($(isIn(EventType.CREATE, EventType.MODIFY)), o -> run(() -> fileModified(koxFile))),
+                Case(is(EventType.DELETE), o -> run(() -> fileDeleted(koxFile))),
+                Case($(), o -> run(() -> {
+                    throw new UnsupportedOperationException("Event type not supported yet! " + fileEvent.getEventType());
+                }))
+        );
+    }
+
+    @Override
+    public InputStream getInputStream(@NonNull final KoxFile koxFile) {
+        try {
+            return new FileInputStream(rootFolder + "/" + koxFile.getPath());
+        } catch (FileNotFoundException e) {
+            log.warn("File not found: " + koxFile.getId());
+            return null;
+        }
+    }
+
+    @Override
     public void processFilesystemEvent(@NonNull final Path path, @NonNull final EventType eventType, @NonNull final FileType fileType) {
+        if (recentUpdates.containsKey(path.toString())) {
+            log.debug("Skipping recent update");
+            return;
+        }
+
         String name = getNameFromPath(path);
         Instant modificationDate;
         try {
@@ -142,23 +180,6 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
     }
 
 
-    @Override
-    public void process(@NonNull final FileEvent fileEvent) {
-        KoxFile koxFile = fileEvent.getKoxFile();
-        if (!isFileNeededToUpdate(koxFile)) {
-            log.warn("Ignoring change: " + fileEvent);
-            return;
-        }
-
-        Match(fileEvent.getEventType()).of(
-                Case($(isIn(EventType.CREATE, EventType.MODIFY)), o -> run(() -> fileModified(koxFile))),
-                Case(is(EventType.DELETE), o -> run(() -> fileDeleted(koxFile))),
-                Case($(), o -> run(() -> {
-                    throw new UnsupportedOperationException("Event type not supported yet! " + fileEvent.getEventType());
-                }))
-        );
-    }
-
     private boolean isFileNeededToUpdate(KoxFile koxFile) {
         if (koxFile.getFileType() == FileType.DIR)
             return true;
@@ -183,16 +204,6 @@ public class FilesystemSynchronizer implements ISynchronizer, IFileSystemEventPr
         return currentFileModificationTime.plusSeconds(5).isBefore(changedFileModificationTime);
     }
 
-
-    @Override
-    public InputStream getInputStream(@NonNull final KoxFile koxFile) {
-        try {
-            return new FileInputStream(rootFolder + "/" + koxFile.getPath());
-        } catch (FileNotFoundException e) {
-            log.warn("File not found: " + koxFile.getId());
-            return null;
-        }
-    }
 
     private void fileModified(KoxFile koxFile) {
         if (koxFile.getFileType() == FileType.REGULAR_FILE)

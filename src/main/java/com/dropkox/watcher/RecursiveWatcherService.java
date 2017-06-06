@@ -127,8 +127,8 @@ public class RecursiveWatcherService {
 
         fileSystemEventProcessor.processFilesystemEvent(relativeFromRootPath, eventType, isDirectory ? FileType.DIR : FileType.REGULAR_FILE);
 
-        if (eventType == EventType.DELETE && keys.values().remove(absPath)) {
-            log.info("Unregistering to  " + absPath + " in watcher service");
+        if (eventType == EventType.DELETE) {
+            directoryRemoved(absPath);
         }
 
         if (isDirectory) {
@@ -145,8 +145,13 @@ public class RecursiveWatcherService {
     }
 
     public void directoryRemoved(@NonNull final Path absolutePath) {
+        for (Map.Entry<WatchKey, Path> entry : keys.entrySet()) {
+            if (entry.getValue().equals(absolutePath)) {
+                entry.getKey().cancel();
+            }
+        }
         if (keys.values().remove(absolutePath)) {
-            log.info("1Unregistering to  " + absolutePath + " in watcher service");
+            log.info("Unregistering to  " + absolutePath + " in watcher service");
         }
     }
 }
