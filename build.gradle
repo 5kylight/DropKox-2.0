@@ -53,7 +53,7 @@ dependencies {
     compile group: 'org.springframework.boot', name: 'spring-boot-test', version: '1.5.2.RELEASE'
     compile group: 'org.springframework.boot', name: 'spring-boot-starter-test', version: '1.5.2.RELEASE'
     compile group: 'org.springframework.boot', name: 'spring-boot-autoconfigure', version: '1.5.2.RELEASE'
-	//    compile group: 'org.springframework', name: 'spring-tx', version: '4.3.7.RELEASE'
+//    compile group: 'org.springframework', name: 'spring-tx', version: '4.3.7.RELEASE'
 
     compileOnly "org.projectlombok:lombok:1.16.16"
     compile 'io.javaslang:javaslang:2.0.6'
